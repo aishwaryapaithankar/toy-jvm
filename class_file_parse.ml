@@ -154,6 +154,3 @@ let parse_file file =
   let (attributes_count, b) = parse_two_bytes b in
   let (attribute_info,b) = parse_attribute_info b attributes_count in
   {constPool = constant_pool; name =  (resolve constant_pool this_class); super = (resolve constant_pool super_class); accessFlags = access_flags; interfaces = interfaces; fields = field_info; methods = method_info; attributes = attribute_info;};;
-
-
-

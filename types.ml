@@ -35,10 +35,15 @@ type cls = {
   attributes : attr list;
 }
 
+type var = 
+  | Int of int
+  | Str of string
+
+
 type 'a jvmframe = {
   class_file: cls;
 	ip: int;
 	code: int list;
-	locals: int array;
+	locals: var array;
 	stack: 'a;
 }
