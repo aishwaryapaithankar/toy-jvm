@@ -1,3 +1,4 @@
+#use "stack.ml";;
 
 type const = {
    tag : int; 
@@ -35,15 +36,17 @@ type cls = {
   attributes : attr list;
 }
 
-type var = 
-  | Int of int
-  | Str of string
-
-
-type 'a jvmframe = {
+type jvmframe = {
   class_file: cls;
+  method_name: string;
 	ip: int;
 	code: int list;
 	locals: var array;
-	stack: 'a;
+	stack: Stack.t;
 }
+
+type descriptor =
+  | I 
+  | S  
+  | B 
+  | F 

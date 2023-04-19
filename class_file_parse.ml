@@ -1,5 +1,5 @@
 #use "types.ml";;
-#use "stack.ml";;
+(* #use "stack.ml";; *)
 
 (*Helper functions to parse bytes*)  
 let parse_eight_bytes l =
