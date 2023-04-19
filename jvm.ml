@@ -1,6 +1,6 @@
 #use "class_file_parse.ml";;
 
-let class_file = parse_file  "test/Factorial.class";;
+let class_file = parse_file  "test/IterativeFactorial.class";;
 
 let rec find_method (l:field list) mn= match l with
 | [] -> raise (Failure "method not found")
@@ -56,6 +56,9 @@ let create_args (li:descriptor list) (stack:Stack.t) =
     | [] -> failwith "Accidently passed return value in args"
   in aux li stack [];;
 
+let signed_byte x = if x > 127 then -(((lnot x) land 0xFF) + 1) else x
+let signed_two_bytes x = if (x land 0x8000 > 0) then -(((lnot x) land 0xFFFF) + 1) else x
+
 let rec exec (f: jvmframe) =
   (* let _ = read_line() in *)
   let op = (List.nth f.code f.ip) in
@@ -75,14 +78,27 @@ let rec exec (f: jvmframe) =
   | 96 (*iadd*) ->  exec @@ update_frame f @@ Stack.i_add f.stack         
   | 100 (*isub*) -> exec @@ update_frame f @@ Stack.i_sub f.stack 
   | 104 (*imul*) -> exec @@ update_frame f @@ Stack.i_mul f.stack     
-  | 108 (*idiv*) -> exec @@ update_frame f @@ Stack.i_div f.stack                       
+  | 108 (*idiv*) -> exec @@ update_frame f @@ Stack.i_div f.stack
+  | 132 (*iinc*) ->  let i = (List.nth f.code (f.ip+1)) in
+                 let c = signed_byte (List.nth f.code (f.ip+2)) in
+                 let Int(x) = f.locals.(i) in
+                 f.locals.(i) <- (Int(x + c));
+                 exec @@ update_frame_inc_ip f f.stack 3
+  | 158 (*ifle*) ->   let (b,s') = Stack.ifle f.stack in
+                      if b then 
+                      let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
+                      let _ = print_endline (string_of_int (i)) in
+                      exec @@ update_frame_set_ip f s' (f.ip+i)
+                      else exec @@ update_frame_inc_ip f s' 3                     
   | 160 (*if_icmpne*) ->  let (b,s') = Stack.if_icmpne f.stack in
                           if b then 
                           let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
                           let _ = print_endline (string_of_int (i)) in
                           exec @@ update_frame_set_ip f s' (f.ip+i)
                           else exec @@ update_frame_inc_ip f s' 3
-                      
+  | 167 (*goto*) -> let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in
+                    let i = signed_two_bytes i in
+                    exec @@ update_frame_set_ip f f.stack (f.ip+i)
   | 172 (*ireturn*) -> Stack.peek f.stack (*Caller should push this value to the stack*)
   | 177 ->  Void   
   | 184 (*invokestatic*) ->  let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
@@ -107,16 +123,23 @@ let main_frame = create_frame main_index class_file [] in  (*assumed that main w
 exec main_frame;;
 (* (main_frame.class_file.methods);; *)
 
-(* {accessFlag = 9; fNameIndex = 11; descIndex = 12; attrCount = 1;
+(* [{accessFlag = 1; fNameIndex = 5; descIndex = 6; attrCount = 1;
   attrInfo =
-   [{aNameIndex = 13; len = 53;
+   [{aNameIndex = 13; len = 29;
      info =
-      [0; 3; 0; 1; 0; 0; 0; 16; 26; 4; 160; 0; 5; 4; 172; 26; 26; 4; 100;
-       184; 0; 7; 104; 172; 0; 0; 0; 2; 0; 14; 0; 0; 0; 10; 0; 2; 0; 0; 0; 3;
-       0; 7; 0; 4; 0; 15; 0; 0; 0; 3; 0; 1; 7]}]};
+      [0; 1; 0; 1; 0; 0; 0; 5; 42; 183; 0; 1; 177; 0; 0; 0; 1; 0; 14; 0; 0;
+       0; 6; 0; 1; 0; 0; 0; 1]}]};
+ {accessFlag = 9; fNameIndex = 11; descIndex = 12; attrCount = 1;
+  attrInfo =
+   [{aNameIndex = 13; len = 67;
+     info =
+      [0; 2; 0; 2; 0; 0; 0; 18; 4; 60; 26; 158; 0; 13; 27; 26; 132; 0; 255;
+       104; 60; 167; 255; 245; 27; 172; 0; 0; 0; 2; 0; 14; 0; 0; 0; 18; 0; 4;
+       0; 0; 0; 3; 0; 2; 0; 4; 0; 6; 0; 5; 0; 16; 0; 7; 0; 15; 0; 0; 0; 7; 0;
+       2; 252; 0; 2; 1; 13]}]};
  {accessFlag = 9; fNameIndex = 16; descIndex = 17; attrCount = 1;
   attrInfo =
    [{aNameIndex = 13; len = 34;
      info =
       [0; 1; 0; 1; 0; 0; 0; 6; 7; 184; 0; 7; 87; 177; 0; 0; 0; 1; 0; 14; 0;
-       0; 0; 10; 0; 2; 0; 0; 0; 7; 0; 5; 0; 8]}]}]*)
+       0; 0; 10; 0; 2; 0; 0; 0; 10; 0; 5; 0; 11]}]}]*)

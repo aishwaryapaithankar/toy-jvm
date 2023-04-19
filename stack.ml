@@ -29,6 +29,8 @@ module Stack = struct
 
   let if_icmpne ((Int(x)::Int(y)::s) : t) : (bool*t) = (x<>y),s 
 
+  let ifle ((Int(x)::s) : t) : (bool*t) = (x <= 0),s
+
   let to_string = function
   | Int n -> string_of_int n
   | Str s -> s
