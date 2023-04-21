@@ -1,4 +1,3 @@
-#use "stack.ml";;
 
 type const = {
    tag : int; 
@@ -25,28 +24,36 @@ type field = {
   attrInfo : attr list
 }
 
+type interface = {
+  iNameIndex : int;
+}
+
 type cls = {
   constPool : const list;
   name : string;
   super : string;
   accessFlags : int;
-  interfaces : string list;
+  interfaces : interface list;
   fields : field list;
   methods : field list;
   attributes : attr list;
 }
 
-type jvmframe = {
-  class_file: cls;
-  method_name: string;
-	ip: int;
-	code: int list;
-	locals: var array;
-	stack: Stack.t;
+type 'a field_list = {
+  name : string;
+  value: 'a;
 }
 
+type var = 
+  | Int of int
+  | Str of string
+  | Void 
+  | CRef of (cls * var field_list list ref)
+
 type descriptor =
-  | I 
-  | S  
-  | B 
-  | F 
+  | I (*Int*)
+  | S (*String*)
+  | B (*Signed Byte*)
+  | F (*Float*)
+  | Z (*Boolean*) 
+  | V (*Void*)

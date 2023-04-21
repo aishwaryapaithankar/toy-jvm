@@ -1,8 +1,5 @@
+#use "types.ml";;
 
-type var = 
-  | Int of int
-  | Str of string
-  | Void 
 
 module Stack = struct
   type t = var list
@@ -31,19 +28,30 @@ module Stack = struct
 
   let ifle ((Int(x)::s) : t) : (bool*t) = (x <= 0),s
 
+  let ifeq ((Int(x)::s) : t) : (bool*t) = (x = 0),s
+
   let to_string = function
   | Int n -> string_of_int n
   | Str s -> s
+  | CRef x -> "Obj Ref of " ^ (fst x).name
   | Void -> " "
 
-  let print_stack n op s = 
+  let print_stack c n op s = 
     let str_s = List.map to_string s in
-    let str = n ^" : "^(string_of_int op)^" : [" ^ (String.concat "," str_s) ^ "]" in
+    let str = c ^ " class : " ^ n ^" method : "^(string_of_int op)^" instruction: [" ^ (String.concat "," str_s) ^ "]" in
     print_endline str
 end;;
 
+type jvmframe = {
+  class_file: cls;
+  method_name: string;
+	ip: int;
+	code: int list;
+	locals: var array;
+	stack: Stack.t;
+}
 (* let s = (Stack.empty_stack |> Stack.push (Int(3)) |> Stack.push (Str("a"))) in
 let t = Stack.pop s in
 Stack.peek t;; *)
-
- Stack.empty_stack |> Stack.peek;;
+(* 
+ Stack.empty_stack |> Stack.peek;; *)

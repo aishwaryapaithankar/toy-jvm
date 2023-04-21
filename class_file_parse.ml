@@ -1,4 +1,4 @@
-#use "types.ml";;
+#use "stack.ml";;
 (* #use "stack.ml";; *)
 
 (*Helper functions to parse bytes*)  
@@ -69,39 +69,39 @@ let parse_constant_pool l count =
              | 10::xs (* CONSTANT_Methodref  *)-> let (class_index,l') = parse_two_bytes xs in 
                                                   let (name_and_type_index,l'') = parse_two_bytes l' in
                                                   ({base_const with tag=10;classIndex=class_index;nameAndTypeIndex=name_and_type_index}, l'')
-             | 9::xs (* CONSTANT_Fieldref  *) -> failwith "notimpl"
-             | 11::xs (* CONSTANT_InterfaceMethodref  *) -> failwith "notimpl"
-             | 8::xs (* CONSTANT_String  *) -> failwith "notimpl"
-             | 3::xs (* CONSTANT_Integer  *) -> failwith "notimpl"
-             | 4::xs (* CONSTANT_Float  *) -> failwith "notimpl"
-             | 5::xs (* CONSTANT_Long  *) -> failwith "notimpl"
-             | 6::xs (* CONSTANT_Double  *) -> failwith "notimpl"
+             | 9::xs (*CONSTANT_Fieldref*)  -> let (class_index,l') = parse_two_bytes xs in 
+                                                let (name_and_type_index,l'') = parse_two_bytes l' in
+                                                ({base_const with tag=9;classIndex=class_index;nameAndTypeIndex=name_and_type_index}, l'')
+             | 11::xs (* CONSTANT_InterfaceMethodref  *) -> failwith "notimpl CONSTANT_InterfaceMethodref"
+             | 8::xs (* CONSTANT_String  *) -> let (si,l') = parse_two_bytes xs in ({base_const with tag=8;stringIndex=si}, l')
+             | 3::xs (* CONSTANT_Integer  *) -> failwith "notimpl CONSTANT_Integer"
+             | 4::xs (* CONSTANT_Float  *) -> failwith "notimpl CONSTANT_Float"
+             | 5::xs (* CONSTANT_Long  *) -> failwith "notimpl CONSTANT_Long"
+             | 6::xs (* CONSTANT_Double  *) -> failwith "notimpl CONSTANT_Double"
              | 12::xs (* CONSTANT_NameAndType  *) -> let (name_index,l') = parse_two_bytes xs in 
                                                      let (descriptor_index,l'') = parse_two_bytes l' in
                                                      ({base_const with tag=12;cNameIndex=name_index;descIndex=descriptor_index}, l'')
              | 1::xs (* CONSTANT_Utf8  *) -> let (length,l') = parse_two_bytes xs in
                                              let (string_val,l'') = bytes_to_string length l' in
                                              ({base_const with tag=1;cString=string_val}, l'')
-             | 15::xs (* CONSTANT_MethodHandle  *) -> failwith "notimpl"
-             | 16::xs (* CONSTANT_MethodType  *) -> failwith "notimpl"
-             | 17::xs (* CONSTANT_Dynamic  *) -> failwith "notimpl"
-             | 18::xs (* CONSTANT_InvokeDynamic  *) -> failwith "notimpl"
-             | 19::xs (* CONSTANT_Module  *) -> failwith "notimpl"
-             | 20::xs (* CONSTANT_Package  *) -> failwith "notimpl"
+             | 15::xs (* CONSTANT_MethodHandle  *) -> failwith "notimpl CONSTANT_MethodHandle"
+             | 16::xs (* CONSTANT_MethodType  *) -> failwith "notimpl CONSTANT_MethodType"
+             | 17::xs (* CONSTANT_Dynamic  *) -> failwith "notimpl CONSTANT_Dynamic"
+             | 18::xs (* CONSTANT_InvokeDynamic  *) -> failwith "notimpl CONSTANT_InvokeDynamic"
+             | 19::xs (* CONSTANT_Module  *) -> failwith "notimpl CONSTANT_Module"
+             | 20::xs (* CONSTANT_Package  *) -> failwith "notimpl CONSTANT_Package"
              | _ ->  failwith "unknown tag")
          in aux newlist (c+1) (const_pool @ [constant])
   in aux l 0 [];; 
 
-let parse_interfaces l count =  ([],[]) (*TODO*);;
-
-let parse_field_info l count = ([],[]) (*TODO*);;
 
 let rec resolve cp index =
     let const = List.nth cp (index-1) in
     if const.tag = 1  then const.cString
     else if const.tag = 7 then resolve cp const.cNameIndex
+    else if const.tag = 8 then resolve cp const.stringIndex
     else "";;
-    
+
 let split_n n lst =
   let rec aux acc i = function
     | [] -> (List.rev acc, [])
@@ -121,7 +121,7 @@ let parse_attribute_info l count  =
     ) 
   in aux l 1 [];;
 
-let parse_method_info l count  = 
+let parse_method_info l count : (field list * int list) = 
   let rec aux b c method_info = 
     if c > count then (method_info, b)
     else (
@@ -135,13 +135,37 @@ let parse_method_info l count  =
     )
   in aux l 1 [];;
 
+let parse_field_info l count : (field list * int list)= 
+  let rec aux b c field_info = 
+    if c > count then (field_info, b)
+    else (
+      let (access_flags,b) = parse_two_bytes b in
+      let (name_index,b) = parse_two_bytes b in
+      let (descriptor_index,b) = parse_two_bytes b in
+      let (attributes_count,b) = parse_two_bytes b in
+      let (attribute_info, b) = parse_attribute_info b attributes_count  in
+      let info = [{accessFlag=access_flags;fNameIndex=name_index;descIndex=descriptor_index;attrCount=attributes_count;attrInfo=attribute_info}] in
+      aux b (c+1) (field_info @ info)
+    )
+  in aux l 1 [];;
+
+
+let parse_interfaces l count : (interface list * int list)=    
+  let rec aux b c interface_info = 
+    if c > count then (interface_info, b)
+    else (
+      let (name_index,b) = parse_two_bytes b in
+      let info = [{iNameIndex=name_index}] in
+      aux b (c+1) (interface_info @ info)
+    )
+  in aux l 1 [];;
+
 let parse_file file = 
   let b = get_bytes file in 
   let b = parse_magicword b in
   let b = parse_version b in
   let (constant_pool_count, b) = parse_constant_pool_count b in
-  let (constant_pool, b) = if constant_pool_count > 0 then parse_constant_pool b (constant_pool_count-1) 
-  else ([], b) in
+  let (constant_pool, b) = if constant_pool_count > 0 then parse_constant_pool b (constant_pool_count-1) else ([], b) in
   let (access_flags,b) = parse_two_bytes b in
   let (this_class,b) = parse_two_bytes b in
   let (super_class,b) = parse_two_bytes b in
@@ -153,4 +177,4 @@ let parse_file file =
   let (method_info, b) = parse_method_info b method_count in
   let (attributes_count, b) = parse_two_bytes b in
   let (attribute_info,b) = parse_attribute_info b attributes_count in
-  {constPool = constant_pool; name =  (resolve constant_pool this_class); super = (resolve constant_pool super_class); accessFlags = access_flags; interfaces = interfaces; fields = field_info; methods = method_info; attributes = attribute_info;};;
+  {constPool = constant_pool; name =  (resolve constant_pool this_class); super = (resolve constant_pool super_class); accessFlags = access_flags; interfaces = interfaces; fields = field_info; methods = method_info; attributes = attribute_info;};; 
