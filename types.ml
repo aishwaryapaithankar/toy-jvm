@@ -39,16 +39,21 @@ type cls = {
   attributes : attr list;
 }
 
-type 'a field_list = {
+type 'a fl = {
   name : string;
   value: 'a;
+}
+
+type cl = {
+  class_name: string;
+  class_file : cls;
 }
 
 type var = 
   | Int of int
   | Str of string
   | Void 
-  | CRef of (cls * var field_list list ref)
+  | CRef of (cls * var fl list ref)
 
 type descriptor =
   | I (*Int*)

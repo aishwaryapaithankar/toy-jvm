@@ -32,33 +32,35 @@ class Student extends Person {
     this.grade = grade;
   }
   
-//   public int getGrade() {
-//     return grade;
-//   }
+  public int getGrade() {
+    return grade;
+  }
   
-//   public void setGrade(int grade) {
-//     this.grade = grade;
-//   }
+  public void setGrade(int grade) {
+    this.grade = grade;
+  }
   
-//   public void increaseGrade() {
-//     grade++;
-//   }
+  public void increaseGrade() {
+    grade++;
+  }
   
-//   public void decreaseGrade() {
-//     grade--;
-//   }
+  public void decreaseGrade() {
+    grade--;
+  }
 }
 
 public class Inheritance {
   public static void main(String[] args) {
-    Person myStudent = new Person("John", 16);
-    myStudent.getAge();
-    // Student myStudent = new Student("John", 16, 9);
-    // int currentGrade = myStudent.getGrade();
+    // Person myStudent = new Person("John", 16);
+    // myStudent.getName();
+    Student myStudent = new Student("John", 16, 9);
+    // myStudent.increaseGrade();
+    int currentGrade = myStudent.getGrade();
+    String name = myStudent.getName();
     // System.out.println(myStudent.getName() + " is in grade " + currentGrade);
     
-    // myStudent.increaseGrade();
-    // int newGrade = myStudent.getGrade();
+    myStudent.increaseGrade();
+    int newGrade = myStudent.getGrade();
     // System.out.println("After promotion, " + myStudent.getName() + " is now in grade " + newGrade);
     
     // myStudent.decreaseGrade();
