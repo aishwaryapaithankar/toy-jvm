@@ -6,16 +6,16 @@ let rec find_method (l:field list) mn= match l with
 | [] -> raise (Failure "method not found")
 | x :: xs -> if x.fNameIndex = mn then x else find_method xs mn;;
 
-(* let rec find_method_by_name (l:field list) c mn = match l with
+let rec find_method_by_name (l:field list) c mn = match l with
 | [] -> raise (Failure "method not found")
-| x :: xs -> if (resolve c x.fNameIndex) = mn then x else find_method xs mn;; *)
+| x :: xs -> if (resolve c x.fNameIndex) = mn then x else find_method_by_name xs c mn;;
 
 let rec find_code_attribute (l: attr list) (cp:const list) = match l with
 | [] -> raise (Failure "code attribute not found")
 | x :: xs -> if (resolve cp x.aNameIndex) = "Code" then x else find_code_attribute xs cp;;
 
-let create_frame (mn:int) c (args : var list) = 
-    let m = find_method c.methods mn in
+let create_frame (m) c (args : var list) = 
+
     let ca = find_code_attribute m.attrInfo c.constPool in
     let (max_stack,cb) = split_n 2 ca.info in 
     let (max_local,cb) = split_n 2 cb in
@@ -103,7 +103,11 @@ let update_obj_ref name value obj_ref =
   obj_ref := List.map (fun field ->
     if field.name = name then {field with value = value} else field
   ) !obj_ref
-  
+
+let get_value_from_obj_ref name obj_ref =
+    match List.find_opt (fun field -> field.name = name) !obj_ref with
+    | Some field -> field.value
+    | None -> failwith "No Field Found"
   
 let rec exec (f: jvmframe) =
   (* let _ = read_line() in *)
@@ -160,6 +164,15 @@ let rec exec (f: jvmframe) =
                     exec @@ update_frame_set_ip f f.stack (f.ip+i)
   | 172 (*ireturn*) -> Stack.peek f.stack (*Caller should push this value to the stack*)
   | 177 ->  Void  
+  | 180 (*getfield*) -> let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in
+                        let (fi, d) =  get_name_and_args f.class_file.constPool i in
+                        let fn = resolve f.class_file.constPool fi in
+                        let CRef(obj) = Stack.peek f.stack in
+                        let new_stack = Stack.pop f.stack in
+                        let obj = snd obj in
+                        let v =  get_value_from_obj_ref fn obj in
+                        exec @@ update_frame_inc_ip f (Stack.push v new_stack) 3
+                       
   | 181 (*putfield*) -> let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in
                         let (fi, d) =  get_name_and_args f.class_file.constPool i in
                         let fn = resolve f.class_file.constPool fi in
@@ -176,7 +189,11 @@ let rec exec (f: jvmframe) =
                             let (new_stack,args) = create_args_with_obj_ref (parse_descriptor d) f.stack in
                             let CRef(obj) = List.nth args 0 in
                             let obj_cls = (fst obj) in
-                            CRef(obj)
+                            let m = find_method_by_name obj_cls.methods obj_cls.constPool (resolve f.class_file.constPool (mi)) in 
+                            let new_frame = create_frame m obj_cls args in
+                            let return_val = exec new_frame in
+                            let new_stack = (Stack.pop new_stack) in 
+                            (match return_val with |Void ->  print_endline "found void";exec @@ update_frame_inc_ip f new_stack 3 | _ ->  print_endline "found rv";exec @@ update_frame_inc_ip f  (Stack.push return_val new_stack) (3))
   | 183 (*invokespecial*)-> let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
                             if (jobj_method f.class_file.constPool i) then (exec @@ update_frame_inc_ip f  (Stack.pop  f.stack) (3)) else
                               let (mi, d) =  get_name_and_args f.class_file.constPool i in
@@ -184,13 +201,17 @@ let rec exec (f: jvmframe) =
                               let (new_stack,args) = create_args_with_obj_ref (parse_descriptor d) f.stack in
                               let CRef(obj) = List.nth args 0 in
                               let obj_cls = (fst obj) in
-                              let new_frame = create_frame mi obj_cls args in
+                              let m = find_method obj_cls.methods mi in
+                              let _ = print_endline ("found desc as " ^ (resolve obj_cls.constPool (m.fNameIndex))) in
+                              let new_frame = create_frame m obj_cls args in
                               let return_val = exec new_frame in
+                              let new_stack = (Stack.pop new_stack) in 
                               (match return_val with |Void ->  print_endline "found void";exec @@ update_frame_inc_ip f new_stack 3 | _ ->  print_endline "found rv";exec @@ update_frame_inc_ip f  (Stack.push return_val new_stack) (3))
   | 184 (*invokestatic*) ->  let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
                              let (mi, d) =  get_name_and_args f.class_file.constPool i in
                              let (new_stack,args) = create_args (parse_descriptor d) f.stack in
-                             let new_frame = create_frame mi (f.class_file) args in
+                             let m = find_method f.class_file.methods mi in
+                             let new_frame = create_frame m (f.class_file) args in
                              (* let return_val = exec new_frame in (*change this to check void type*)
                              exec @@ update_frame_inc_ip f  (Stack.push return_val new_stack) (3) *)
                              let return_val = exec new_frame in
@@ -210,7 +231,8 @@ let find_main c =
     in aux 0;;
 
 let main_index = find_main class_file in 
-let main_frame = create_frame main_index class_file [] in  (*assumed that main will have no args*)
+let main = find_method class_file.methods main_index in
+let main_frame = create_frame main class_file [] in  (*assumed that main will have no args*)
 exec main_frame;;
 (* let o = create_obj "Person" in (fst o,!(snd o));;
 ; *)

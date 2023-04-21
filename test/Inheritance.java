@@ -24,13 +24,13 @@ class Person {
   }
 }
 
-// class Student extends Person {
-//   private int grade;
+class Student extends Person {
+  private int grade;
   
-//   public Student(String name, int age, int grade) {
-//     super(name, age);
-//     this.grade = grade;
-//   }
+  public Student(String name, int age, int grade) {
+    super(name, age);
+    this.grade = grade;
+  }
   
 //   public int getGrade() {
 //     return grade;
@@ -47,7 +47,7 @@ class Person {
 //   public void decreaseGrade() {
 //     grade--;
 //   }
-// }
+}
 
 public class Inheritance {
   public static void main(String[] args) {
