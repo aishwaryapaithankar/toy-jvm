@@ -51,18 +51,20 @@ class Student extends Person {
 
 public class Inheritance {
   public static void main(String[] args) {
-    Student myStudent = new Student("John", 16, 9);
-    int currentGrade = myStudent.getGrade();
+    Student student1 = new Student("John", 16, 9);
+    Student student2 = new Student("Amy", 13, 6);
+    int currentGrade = student1.getGrade();
+
+    System.out.println(student1.getName() + " is in grade " + currentGrade);
     
-    String name = myStudent.getName();
-    System.out.println(myStudent.getName() + " is in grade " + currentGrade);
+    student1.increaseGrade();
+    int newGrade = student1.getGrade();
+    System.out.println("After promotion, " + student1.getName() + " is now in grade " + newGrade);
     
-    myStudent.increaseGrade();
-    int newGrade = myStudent.getGrade();
-    System.out.println("After promotion, " + myStudent.getName() + " is now in grade " + newGrade);
-    
-    myStudent.decreaseGrade();
-    newGrade = myStudent.getGrade();
-    System.out.println("After demotion, " + myStudent.getName() + " is now in grade " + newGrade);
+    student1.decreaseGrade();
+    newGrade = student1.getGrade();
+    System.out.println("After demotion, " + student1.getName() + " is now in grade " + newGrade);
+
+    System.out.println(student2.getName() + " is in grade " + student2.getGrade());
   }
 }

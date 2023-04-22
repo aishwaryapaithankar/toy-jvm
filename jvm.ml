@@ -1,6 +1,10 @@
-#use "class_file_parse.ml";;
+(* #use "class_file_parse.ml";; *)
+open Class_file_parse
+open Types
+open Stack
 
-let class_file = parse_file  "test/Factorial.class";;
+(* let cname = in *)
+let class_file = parse_file ( Sys.argv.(1) ^ ".class");;
 
 let (class_list: cl list) = [];;
 
@@ -9,7 +13,7 @@ let parse_other_class clsname=
   let name_exists = List.find_opt (fun c -> class_name_matches c clsname) class_list in
     match name_exists with
     | Some c -> c.class_file
-    | None -> let obj_classfile = parse_file @@ "test/"^clsname^".class" in
+    | None -> let obj_classfile = parse_file @@ clsname^".class" in
               {class_name=clsname;class_file=obj_classfile}::class_list; obj_classfile
 
 let rec find_method (l:field list) mn= match l with
@@ -191,9 +195,10 @@ let rec exec (f: jvmframe) =
   | 18 (*ldc*) -> let i = (resolve f.class_file.constPool (List.nth f.code (f.ip+1)))
                           in exec @@ update_frame_inc_ip f (Stack.push (Str(i)) (f.stack)) 2 (*TODO: Handle int, classref here*)
   | 21 (*iload*) -> let i = (List.nth f.code (f.ip+1)) in let v = f.locals.(i) in exec @@ update_frame_inc_ip f (Stack.push v (f.stack)) 2
+  | 25 (*aload*) -> let i = (List.nth f.code (f.ip+1)) in let v = f.locals.(i) in exec @@ update_frame_inc_ip f (Stack.push v (f.stack)) 2
   | 26 | 27 | 28 | 29 (* iload *) -> (match f.locals.(op-26) with | Int(_) as x -> exec @@ update_frame f @@ Stack.push x f.stack
                                                  | _ -> failwith "Required int found something else in iload") 
-  | 42 | 43 | 44 | 45 (*aload*) -> exec @@ update_frame f @@ Stack.push (f.locals.(op-42)) f.stack
+  | 42 | 43 | 44 | 45 (*aload_<n>*) -> exec @@ update_frame f @@ Stack.push (f.locals.(op-42)) f.stack
   | 54 (*istore*) ->  let i = (List.nth f.code (f.ip+1)) in 
                       let x = (Stack.peek f.stack) in
                       f.locals.(i) <- x;
@@ -216,22 +221,44 @@ let rec exec (f: jvmframe) =
                  exec @@ update_frame_inc_ip f f.stack 3
   | 153 (*ifeq*) ->  let (b,s') = Stack.ifeq f.stack in
                     if b then 
-                    let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
-                    (* let _ = print_endline (string_of_int (i)) in *)
+                    let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in
                     exec @@ update_frame_set_ip f s' (f.ip+i)
                     else exec @@ update_frame_inc_ip f s' 3 
   | 158 (*ifle*) ->   let (b,s') = Stack.ifle f.stack in
                       if b then 
                       let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
-                      (* let _ = print_endline (string_of_int (i)) in *)
                       exec @@ update_frame_set_ip f s' (f.ip+i)
                       else exec @@ update_frame_inc_ip f s' 3                     
+  | 159 (*if_icmpeq*) ->let (b,s') = Stack.if_icmpeq f.stack in
+                        if b then 
+                        let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
+                        exec @@ update_frame_set_ip f s' (f.ip+i)
+                        else exec @@ update_frame_inc_ip f s' 3
   | 160 (*if_icmpne*) ->  let (b,s') = Stack.if_icmpne f.stack in
                           if b then 
                           let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
-                          (* let _ = print_endline (string_of_int (i)) in *)
                           exec @@ update_frame_set_ip f s' (f.ip+i)
                           else exec @@ update_frame_inc_ip f s' 3
+  | 161 (*if_icmplt*) ->  let (b,s') = Stack.if_icmplt f.stack in
+                            if b then 
+                            let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
+                            exec @@ update_frame_set_ip f s' (f.ip+i)
+                            else exec @@ update_frame_inc_ip f s' 3
+  | 162 (*if_icmpge*) -> let (b,s') = Stack.if_icmpge f.stack in
+                        if b then 
+                        let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
+                        exec @@ update_frame_set_ip f s' (f.ip+i)
+                        else exec @@ update_frame_inc_ip f s' 3
+  | 163 (*if_icmpgt*) -> let (b,s') = Stack.if_icmpgt f.stack in
+                          if b then 
+                          let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
+                          exec @@ update_frame_set_ip f s' (f.ip+i)
+                          else exec @@ update_frame_inc_ip f s' 3
+  | 164 (*if_icmple*) -> let (b,s') = Stack.if_icmple f.stack in
+                            if b then 
+                            let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
+                            exec @@ update_frame_set_ip f s' (f.ip+i)
+                            else exec @@ update_frame_inc_ip f s' 3
   | 167 (*goto*) -> let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in
                     let i = signed_two_bytes i in
                     exec @@ update_frame_set_ip f f.stack (f.ip+i)
@@ -313,6 +340,7 @@ let rec exec (f: jvmframe) =
   | 187 (*new*) -> let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
                    let obj = CRef(create_obj (resolve f.class_file.constPool i)) in
                    exec @@ update_frame_inc_ip f (Stack.push obj f.stack) (3)    
+  | 189 (*anewarray*) -> exec @@ update_frame_inc_ip f  f.stack (3)  
   | _ -> print_endline (string_of_int op);failwith "OOPS";;  
 
 

@@ -1,6 +1,7 @@
-#use "stack.ml";;
 (* #use "stack.ml";; *)
-
+(* #use "stack.ml";; *)
+(* open Stack *)
+open Types
 (*Helper functions to parse bytes*)  
 let parse_eight_bytes l =
   let rec aux acc n = function
@@ -225,6 +226,3 @@ let parse_file file =
   let (attributes_count, b) = parse_two_bytes b in
   let (attribute_info,b) =  parse_attribute_info_with_bootstrap b attributes_count constant_pool in
   {constPool = constant_pool; name =  (resolve constant_pool this_class); super = (resolve constant_pool super_class); accessFlags = access_flags; interfaces = interfaces; fields = field_info; methods = method_info; attributes = attribute_info;};; 
-  (* (parse_file "test/Inheritance.class");; *)
-(parse_file "test/Inheritance.class").attributes;;
-List.nth (parse_file "test/Inheritance.class").constPool 58;;

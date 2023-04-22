@@ -1,5 +1,5 @@
-#use "types.ml";;
-
+(* #use "types.ml";; *)
+open Types
 
 module Stack = struct
   type t = var list
@@ -24,7 +24,17 @@ module Stack = struct
 
   let i_div ((Int(x)::Int(y)::s) : t) : t = Int(y/x)::s
 
-  let if_icmpne ((Int(x)::Int(y)::s) : t) : (bool*t) = (x<>y),s 
+  let if_icmpeq ((Int(x)::Int(y)::s) : t) : (bool*t) = (y=x),s 
+  
+  let if_icmpne ((Int(x)::Int(y)::s) : t) : (bool*t) = (y<>x),s 
+
+  let if_icmplt ((Int(x)::Int(y)::s) : t) : (bool*t) = (y<x),s 
+
+  let if_icmpge ((Int(x)::Int(y)::s) : t) : (bool*t) = (y>=x),s 
+  
+  let if_icmpgt ((Int(x)::Int(y)::s) : t) : (bool*t) = (y>x),s 
+
+  let if_icmple ((Int(x)::Int(y)::s) : t) : (bool*t) = (y<=x),s 
 
   let ifle ((Int(x)::s) : t) : (bool*t) = (x <= 0),s
 
