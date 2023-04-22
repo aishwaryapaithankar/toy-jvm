@@ -57,7 +57,7 @@ let get_bytes fn =
   close_in inc;
   res ;;
 
-let base_const = {tag=(-99999);cNameIndex=(-99999);classIndex=(-99999);nameAndTypeIndex=(-99999);stringIndex=(-99999);descIndex=(-99999);cString="NaN"};;
+let base_const = {tag=(-99999);cNameIndex=(-99999);classIndex=(-99999);nameAndTypeIndex=(-99999);stringIndex=(-99999);descIndex=(-99999);bootstrapMethodAttrIndex=(-99999);referenceKind=(-99999);referenceIndex=(-99999);cString="NaN"};;
 
 (* functions to parse class file structure*)
 let parse_constant_pool l count = 
@@ -84,10 +84,14 @@ let parse_constant_pool l count =
              | 1::xs (* CONSTANT_Utf8  *) -> let (length,l') = parse_two_bytes xs in
                                              let (string_val,l'') = bytes_to_string length l' in
                                              ({base_const with tag=1;cString=string_val}, l'')
-             | 15::xs (* CONSTANT_MethodHandle  *) -> failwith "notimpl CONSTANT_MethodHandle"
+             | 15::x::xs (* CONSTANT_MethodHandle  *) -> let rk = x in  
+                                            let (ri,l'') = parse_two_bytes xs in
+                                            ({base_const with tag=15;referenceIndex=ri;referenceKind=rk}, l'')
              | 16::xs (* CONSTANT_MethodType  *) -> failwith "notimpl CONSTANT_MethodType"
              | 17::xs (* CONSTANT_Dynamic  *) -> failwith "notimpl CONSTANT_Dynamic"
-             | 18::xs (* CONSTANT_InvokeDynamic  *) -> failwith "notimpl CONSTANT_InvokeDynamic"
+             | 18::xs (* CONSTANT_InvokeDynamic  *) -> let (bi,l') = parse_two_bytes xs in  
+                                                        let (name_and_type_index,l'') = parse_two_bytes l' in
+                                                        ({base_const with tag=18;nameAndTypeIndex=name_and_type_index;bootstrapMethodAttrIndex=bi}, l'')
              | 19::xs (* CONSTANT_Module  *) -> failwith "notimpl CONSTANT_Module"
              | 20::xs (* CONSTANT_Package  *) -> failwith "notimpl CONSTANT_Package"
              | _ ->  failwith "unknown tag")
@@ -109,15 +113,55 @@ let split_n n lst =
   in
   aux [] 0 lst;;
 
-let parse_attribute_info l count  = 
+let parse_attribute_info l count =
   let rec aux b c attr_info =
     if c > count then (attr_info, b)
     else (
       let (attribute_name_index,b) = parse_two_bytes b in
+      (* let _ = print_endline "parse_attribute_info CASE" in *)
       let (attr_len, b) = parse_four_bytes b in
       let (attr_bytes, b) = split_n attr_len b in
-      let info =  [{aNameIndex=attribute_name_index; len=attr_len; info=attr_bytes}] in
+      let info =  [{aNameIndex=attribute_name_index; len=attr_len; info=attr_bytes;bootstrapMethods=[]}] in
       aux b (c+1) (attr_info @ info)
+    ) 
+  in aux l 1 [];;
+
+let parse_bootstrap_attr l count = 
+  let rec aux i b args  =
+    if i > count then (args,b)
+    else (
+      let (arg,b) = parse_two_bytes b in 
+      aux (i+1) b (arg::args))
+  in aux 1 l [];;
+
+
+let parse_bootstrap_methods l count = 
+  let rec aux i b methods  =
+    if i > count then (List.rev methods,b)
+    else (
+      let (bootstrap_method_ref,b)= parse_two_bytes b in
+      let (num_bootstrap_arguments,b)= parse_two_bytes b in
+      let (bootstrap_arguments,b) = parse_bootstrap_attr b num_bootstrap_arguments in
+      aux (i+1) b ({bootstrapMethodRef = bootstrap_method_ref;numBootstrapArguments = num_bootstrap_arguments;bootstrapArguments = bootstrap_arguments}::methods))
+  in aux 1 l [];;
+
+let parse_attribute_info_with_bootstrap l count cp = 
+  let rec aux b c attr_info =
+    if c > count then (attr_info, b)
+    else (
+      let (attribute_name_index,b) = parse_two_bytes b in
+      if(resolve cp attribute_name_index) = "BootstrapMethods" then 
+        let (attr_len, b) = parse_four_bytes b in
+        let (attr_method_num, b) = parse_two_bytes b in
+        let (bootstrap_methods,b) = parse_bootstrap_methods b attr_method_num in
+        let info =  [{aNameIndex=attribute_name_index; len=attr_len; info=[]; bootstrapMethods = bootstrap_methods}] in
+        aux b (c+1) (attr_info @ info)
+      else
+        (* let _ = print_endline "ELSE CASE" in *)
+        let (attr_len, b) = parse_four_bytes b in
+        let (attr_bytes, b) = split_n attr_len b in
+        let info =  [{aNameIndex=attribute_name_index; len=attr_len; info=attr_bytes;bootstrapMethods =[]}] in
+        aux b (c+1) (attr_info @ info)
     ) 
   in aux l 1 [];;
 
@@ -129,7 +173,7 @@ let parse_method_info l count : (field list * int list) =
       let (name_index,b) = parse_two_bytes b in
       let (descriptor_index,b) = parse_two_bytes b in
       let (attributes_count,b) = parse_two_bytes b in
-      let (attribute_info, b) = parse_attribute_info b attributes_count  in
+      let (attribute_info, b) = parse_attribute_info b attributes_count in
       let info = [{accessFlag=access_flags;fNameIndex=name_index;descIndex=descriptor_index;attrCount=attributes_count;attrInfo=attribute_info}] in
       aux b (c+1) (method_info @ info)
     )
@@ -160,6 +204,9 @@ let parse_interfaces l count : (interface list * int list)=
     )
   in aux l 1 [];;
 
+
+(* let parse_bootstrap_method  *)
+
 let parse_file file = 
   let b = get_bytes file in 
   let b = parse_magicword b in
@@ -176,8 +223,8 @@ let parse_file file =
   let (method_count, b) = parse_two_bytes b in
   let (method_info, b) = parse_method_info b method_count in
   let (attributes_count, b) = parse_two_bytes b in
-  let (attribute_info,b) = parse_attribute_info b attributes_count in
+  let (attribute_info,b) =  parse_attribute_info_with_bootstrap b attributes_count constant_pool in
   {constPool = constant_pool; name =  (resolve constant_pool this_class); super = (resolve constant_pool super_class); accessFlags = access_flags; interfaces = interfaces; fields = field_info; methods = method_info; attributes = attribute_info;};; 
   (* (parse_file "test/Inheritance.class");; *)
-(parse_file "test/Student.class").fields;;
-(parse_file "test/Person.class").fields;;
+(parse_file "test/Inheritance.class").attributes;;
+List.nth (parse_file "test/Inheritance.class").constPool 58;;

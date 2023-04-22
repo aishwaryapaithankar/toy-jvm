@@ -4,6 +4,6 @@ public class Factorial {
     return n * fact (n-1);
   }
   public static void main(String[] args) {
-    fact(4);
+    System.out.println("Factorial of 4 is " + fact(4));
   }
 }

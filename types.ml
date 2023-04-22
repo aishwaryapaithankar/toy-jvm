@@ -7,12 +7,22 @@ type const = {
    stringIndex : int;
    descIndex : int;
    cString : string;
+   bootstrapMethodAttrIndex : int;
+   referenceKind : int;
+   referenceIndex : int;
+}
+
+type bootstrapMethodsAttr = {
+  bootstrapMethodRef : int;
+  numBootstrapArguments : int;
+  bootstrapArguments : int list 
 }
 
 type attr = {
   aNameIndex : int;
   len : int;
-  info : int list
+  info : int list;
+  bootstrapMethods : bootstrapMethodsAttr list;
 }
 
 (* Field type is used for both, fields and method *)
@@ -62,3 +72,4 @@ type descriptor =
   | F (*Float*)
   | Z (*Boolean*) 
   | V (*Void*)
+
