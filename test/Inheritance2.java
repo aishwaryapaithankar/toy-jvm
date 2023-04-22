@@ -27,6 +27,10 @@ class Vehicle {
     public void move() {
         System.out.println("Vehicle is moving");
     }
+
+    public void move(int s) {
+        System.out.println("Vehicle is moving at speed " + s);
+    }
 }
 
 // Define a derived class
@@ -56,6 +60,7 @@ class Car extends Vehicle {
         return this.model;
     }
 
+    @Override
     public void move() {
         System.out.println("Car is moving");
     }
@@ -76,6 +81,7 @@ public class Inheritance2 {
         System.out.println("Number of wheels: " + car.getNumOfWheels());
         System.out.println("Make: " + car.getMake());
         System.out.println("Model: " + car.getModel());
-        car.move(); //calls overloaded method
+        car.move();
+        car.move(car.getSpeed()); //calls overloaded method in base class
     }
 }

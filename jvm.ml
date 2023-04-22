@@ -20,15 +20,15 @@ let rec find_method (l:field list) mn= match l with
 | [] -> raise (Failure "method not found")
 | x :: xs -> if x.fNameIndex = mn then x else find_method xs mn;;
 
-let rec find_method_by_name obj_cls mn = 
+let rec find_method_by_name obj_cls mn d= 
   (* let _ = print_endline ("Searching for method " ^ mn) in *)
   let rec aux (l:field list) c = (match l with
   | [] -> None
-  | x :: xs -> if (resolve c x.fNameIndex) = mn then Some((obj_cls,x)) else aux xs c) in
+  | x :: xs -> if ((resolve c x.fNameIndex) = mn && (resolve c x.descIndex) = d) then Some((obj_cls,x)) else aux xs c) in
   let found = aux obj_cls.methods obj_cls.constPool in
   match found with
   | Some(obj_cls,x) -> (obj_cls,x)
-  | None -> if (obj_cls.super <> "java/lang/Object") then (find_method_by_name (parse_other_class (obj_cls.super)) mn) else failwith "no method found";;
+  | None -> if (obj_cls.super <> "java/lang/Object") then (find_method_by_name (parse_other_class (obj_cls.super)) mn d) else failwith "no method found";;
   
 let rec find_code_attribute (li: attr list) (c:cls) = 
   let rec aux (l:attr list) = (match l with
@@ -38,9 +38,6 @@ let rec find_code_attribute (li: attr list) (c:cls) =
     (match found with
     | Some(x) -> x
     | None -> if (c.super <> "java/lang/Object") then (find_code_attribute li (parse_other_class (c.super))) else failwith "code attribute not found");;
-(* let rec find_code_attribute (l: attr list) (cp:const list) = match l with
-  | [] -> raise (Failure "code attribute not found")
-  | x :: xs -> if (resolve cp x.aNameIndex) = "Code" then x else find_code_attribute xs cp;; *)
 
 let create_frame (m) c (args : var list) = 
     let ca = find_code_attribute m.attrInfo c in
@@ -95,8 +92,6 @@ let parse_descriptor str =
     | 'F' ->  aux (i+1) (F::a)
     | 'Z' ->  aux (i+1) (Z::a)
     | 'L' -> let j = String.index_from str (i+1) ';' in
-             let class_name = String.sub str (i+1) (j-i-1) in
-             (* let _ = print_endline class_name in  *)
              aux (j+1) (S::a)
     | 'V' -> aux (i+1) (V::a)
     | _ -> failwith "invalid descriptor " 
@@ -192,6 +187,9 @@ let rec exec (f: jvmframe) =
   match op with 
   | 2 | 3 | 4 | 5 | 6 | 7 | 8 (*iconst*)  -> exec @@ update_frame f @@ Stack.push (Int(op-3)) f.stack
   | 16 (*bipush*) -> let v = (List.nth f.code (f.ip+1)) in exec @@ update_frame_inc_ip f (Stack.push (Int(v)) (f.stack)) 2
+  | 17 (*sipush*) -> let v = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in 
+                     let sv = signed_two_bytes v in 
+                     exec @@ update_frame_inc_ip f (Stack.push (Int(sv)) (f.stack)) 3
   | 18 (*ldc*) -> let i = (resolve f.class_file.constPool (List.nth f.code (f.ip+1)))
                           in exec @@ update_frame_inc_ip f (Stack.push (Str(i)) (f.stack)) 2 (*TODO: Handle int, classref here*)
   | 21 (*iload*) -> let i = (List.nth f.code (f.ip+1)) in let v = f.locals.(i) in exec @@ update_frame_inc_ip f (Stack.push v (f.stack)) 2
@@ -296,7 +294,7 @@ let rec exec (f: jvmframe) =
                             let obj_cls_name = resolve f.class_file.constPool (List.nth f.class_file.constPool (i-1)).classIndex in 
                             (* let _ = print_endline ("Got Class Name in invoke virutal as  " ^ obj_cls_name) in *)
                             let obj_cls = parse_other_class obj_cls_name in
-                            let (obj_cls,m) = find_method_by_name obj_cls (resolve f.class_file.constPool (mi)) in 
+                            let (obj_cls,m) = find_method_by_name obj_cls (resolve f.class_file.constPool (mi)) d in 
                             (* let _ = print_endline ("FOUND METHOD " ^ (resolve f.class_file.constPool (mi))) in *)
                             let new_frame = create_frame m obj_cls args in
                             let return_val = exec new_frame in
@@ -310,7 +308,7 @@ let rec exec (f: jvmframe) =
                               let obj_cls_name = resolve f.class_file.constPool (List.nth f.class_file.constPool (i-1)).classIndex in 
                               (* let _ = print_endline ("Got Class Name in invoke special as  " ^ obj_cls_name) in *)
                               let obj_cls = parse_other_class obj_cls_name in
-                              let (obj_cls,m) = find_method_by_name obj_cls (resolve f.class_file.constPool (mi)) in
+                              let (obj_cls,m) = find_method_by_name obj_cls (resolve f.class_file.constPool (mi)) d in
                               (* let _ = print_endline ("found desc as " ^ (resolve obj_cls.constPool (m.fNameIndex))) in *)
                               let new_frame = create_frame m obj_cls args in
                               let return_val = exec new_frame in

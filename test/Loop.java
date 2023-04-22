@@ -1,9 +1,7 @@
 public class Loop {
-    
   public static void main(String[] args) {
-    int num = 5;
-    for (int i = 1; i <= 25; i++) {
-        System.out.println(num + " x " + i + " = " + (num * i));
+    for (int i = 10000; i <= 10010; i++) {
+        System.out.println(i + " x " + i + " = " + (i * i));
     }
   }
 }
