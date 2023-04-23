@@ -5,5 +5,6 @@ public class Factorial {
   }
   public static void main(String[] args) {
     System.out.println("Factorial of 4 is " + fact(4));
+    System.out.println("Factorial of 8 is " + fact(8));
   }
 }

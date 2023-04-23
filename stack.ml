@@ -8,70 +8,70 @@ module Stack = struct
   let push (x : var) (s : t) = x :: s
 
   let peek (s : t) : var =
-    match s with x :: _ -> x | [] -> failwith "Empty stack in peek"
+    match s with x :: _ -> x | [] -> raise EmptyStack
 
   let pop (s : t) : t =
-    match s with x :: s -> s | [] -> failwith "Empty stack in pop"
+    match s with x :: s -> s | [] -> raise EmptyStack
 
   let i_add (l : t) : t =
     match l with
     | Int x :: Int y :: s -> Int (y + x) :: s
-    | _ -> failwith "Int required found something else in iadd"
+    | _ -> raise (UnexcpectedType "Int required found something else in iadd")
 
   let i_sub (l : t) : t =
     match l with
     | Int x :: Int y :: s -> Int (y - x) :: s
-    | _ -> failwith "Int required found something else in isub"
+    | _ -> raise (UnexcpectedType "Int required found something else in isub")
 
   let i_mul (l : t) : t =
     match l with
     | Int x :: Int y :: s -> Int (y * x) :: s
-    | _ -> failwith "Int required found something else in imul"
+    | _ -> raise (UnexcpectedType "Int required found something else in imul")
 
   let i_div (l : t) : t =
     match l with
     | Int x :: Int y :: s -> Int (y / x) :: s
-    | _ -> failwith "Int required found something else in idiv"
+    | _ -> raise (UnexcpectedType "Int required found something else in idiv")
 
   let if_icmpeq (l : t) : bool * t =
     match l with
     | Int x :: Int y :: s -> (y = x, s)
-    | _ -> failwith "Int required found something else in if_icmpeq"
+    | _ -> raise (UnexcpectedType "Int required found something else in if_icmpeq")
 
   let if_icmpne (l : t) : bool * t =
     match l with
     | Int x :: Int y :: s -> (y <> x, s)
-    | _ -> failwith "Int required found something else in if_icmpne"
+    | _ -> raise (UnexcpectedType "Int required found something else in if_icmpne")
 
   let if_icmplt (l : t) : bool * t =
     match l with
     | Int x :: Int y :: s -> (y < x, s)
-    | _ -> failwith "Int required found something else in if_icmplt"
+    | _ -> raise (UnexcpectedType "Int required found something else in if_icmplt")
 
   let if_icmpge (l : t) : bool * t =
     match l with
     | Int x :: Int y :: s -> (y >= x, s)
-    | _ -> failwith "Int required found something else in if_icmpge"
+    | _ -> raise (UnexcpectedType "Int required found something else in if_icmpge")
 
   let if_icmpgt (l : t) : bool * t =
     match l with
     | Int x :: Int y :: s -> (y > x, s)
-    | _ -> failwith "Int required found something else in if_icmpgt"
+    | _ -> raise (UnexcpectedType "Int required found something else in if_icmpgt")
 
   let if_icmple (l : t) : bool * t =
     match l with
     | Int x :: Int y :: s -> (y <= x, s)
-    | _ -> failwith "Int required found something else in if_icmple"
+    | _ -> raise (UnexcpectedType "Int required found something else in if_icmple")
 
   let ifle (l : t) : bool * t =
     match l with
     | Int x :: s -> (x <= 0, s)
-    | _ -> failwith "Int required found something else in ifle"
+    | _ -> raise (UnexcpectedType "Int required found something else in ifle")
 
   let ifeq (l : t) : bool * t =
     match l with
     | Int x :: s -> (x = 0, s)
-    | _ -> failwith "Int required found something else in ifeq"
+    | _ -> raise (UnexcpectedType "Int required found something else in ifeq")
 
   let to_string = function
     | Int n -> string_of_int n
