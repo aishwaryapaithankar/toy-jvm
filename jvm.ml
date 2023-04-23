@@ -13,8 +13,9 @@ let parse_other_class clsname=
   let name_exists = List.find_opt (fun c -> class_name_matches c clsname) class_list in
     match name_exists with
     | Some c -> c.class_file
-    | None -> let obj_classfile = parse_file @@ clsname^".class" in
-              {class_name=clsname;class_file=obj_classfile}::class_list; obj_classfile
+    | None ->  parse_file @@ clsname^".class"
+      (* let obj_classfile = parse_file @@ clsname^".class" in
+              {class_name=clsname;class_file=obj_classfile}::class_list; obj_classfile *)
 
 let rec find_method (l:field list) mn= match l with
 | [] -> raise (Failure "method not found")
@@ -51,7 +52,9 @@ let create_frame (m) c (args : var list) =
     List.iteri (fun i arg -> match arg with
       | Int x -> if i < max_local then l.(i) <- Int x else ()
       | Str x -> if i < max_local then l.(i) <- Str x else ()
-      | CRef x -> if i < max_local then l.(i) <- CRef x else ()) args;
+      | CRef x -> if i < max_local then l.(i) <- CRef x else ()
+      | Void -> failwith "Unexcpected type in create frame") args;
+      
    {class_file= c;method_name= (resolve c.constPool m.fNameIndex);ip= 0;code= cb;locals= l;stack= (Stack.empty_stack);}
   ;;
 
@@ -78,9 +81,14 @@ let is_concat_call (cp:const list) (i:int) =
 let ignore_method (cp:const list) (i:int) s=   
   let i = (List.nth cp (i-1)).classIndex in 
   let ci = (List.nth cp (i-1)).cNameIndex in 
-  if resolve cp ci = "java/io/PrintStream" then ((let Str(x) = (Stack.peek s) in print_endline x); true) else 
-  if resolve cp ci = "java/lang/Object" then true else 
-  if resolve cp ci = "java/lang/System" then true else false
+  if resolve cp ci = "java/io/PrintStream" then 
+    ((
+      (* let Str(x) = (Stack.peek s) in  *)
+      let x = Stack.peek s |> function | Str(o) -> o | _ -> failwith "ignore_method got unexpected value" in
+        print_endline x); true) 
+  else 
+    if resolve cp ci = "java/lang/Object" then true else 
+    if resolve cp ci = "java/lang/System" then true else false
 
 let parse_descriptor str = 
   let n = String.length str in
@@ -201,7 +209,9 @@ let rec exec (f: jvmframe) =
                       let x = (Stack.peek f.stack) in
                       f.locals.(i) <- x;
                       exec @@ update_frame_inc_ip f (Stack.pop f.stack) 2
-  | 59 | 60 | 61 | 62 (*istore*) -> let Int(x) = (Stack.peek f.stack)  in f.locals.(op-59) <- Int(x);
+  | 59 | 60 | 61 | 62 (*istore*) ->  let x = Stack.peek f.stack |> function | Int(o) -> o | _ -> failwith "istore got unexpected value" in
+                                      (* let Int(x) = (Stack.peek f.stack) in  *)
+                                       f.locals.(op-59) <- Int(x);
                                        exec @@ update_frame f @@ Stack.pop f.stack
   | 75 | 76 | 77 | 78 (*astore*) -> let x = (Stack.peek f.stack) in
                                     f.locals.(op-75) <- x;
@@ -214,7 +224,8 @@ let rec exec (f: jvmframe) =
   | 108 (*idiv*) -> exec @@ update_frame f @@ Stack.i_div f.stack
   | 132 (*iinc*) ->  let i = (List.nth f.code (f.ip+1)) in
                  let c = signed_byte (List.nth f.code (f.ip+2)) in
-                 let Int(x) = f.locals.(i) in
+                 (* let Int(x) = f.locals.(i) in *)
+                 let x = f.locals.(i) |> function | Int(o) -> o | _ -> failwith "iinc got unexpected value" in
                  f.locals.(i) <- (Int(x + c));
                  exec @@ update_frame_inc_ip f f.stack 3
   | 153 (*ifeq*) ->  let (b,s') = Stack.ifeq f.stack in
@@ -269,18 +280,19 @@ let rec exec (f: jvmframe) =
   | 180 (*getfield*) -> let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in
                         let (fi, d) =  get_name_and_args f.class_file.constPool i in
                         let fn = resolve f.class_file.constPool fi in
-                        let CRef(obj) = Stack.peek f.stack in
+                        (* let CRef(obj) = Stack.peek f.stack in *)
+                        let obj = Stack.peek f.stack |> function | CRef(o) -> o | _ -> failwith "getfield got unexpected value" in
                         let new_stack = Stack.pop f.stack in
                         let obj = snd obj in
                         let v =  get_value_from_obj_ref fn obj in
-                        exec @@ update_frame_inc_ip f (Stack.push v new_stack) 3
-                       
+                        exec @@ update_frame_inc_ip f (Stack.push v new_stack) 3      
   | 181 (*putfield*) -> let i = (List.nth f.code (f.ip+1)) * 256 + (List.nth f.code (f.ip+2)) in
                         let (fi, d) =  get_name_and_args f.class_file.constPool i in
                         let fn = resolve f.class_file.constPool fi in
                         let v = Stack.peek f.stack in 
                         let new_stack = Stack.pop f.stack in 
-                        let CRef(obj) = Stack.peek new_stack in
+                        (* let CRef(obj) = Stack.peek new_stack in *)
+                        let obj = Stack.peek new_stack |> function | CRef(o) -> o | _ -> failwith "putfield got unexpected value" in
                         let new_stack = Stack.pop new_stack in
                         let obj = snd obj in
                         update_obj_ref fn v obj; 
