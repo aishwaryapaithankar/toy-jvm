@@ -234,10 +234,12 @@ let get_value_from_obj_ref name obj_ref =
   | Some field -> field.value
   | None -> raise (NotFound "No Field Found")
 
+let debug = ref false;;
+  
 let rec exec (f : jvmframe) =
   (* let _ = read_line() in *)
   let op = List.nth f.code f.ip in
-  (* let _ = Stack.print_stack (f.class_file.name) (f.method_name) op (f.stack)  in *)
+  let _ = if !debug then Stack.print_stack (f.class_file.name) (f.method_name) op (f.stack) else () in  
   match op with
   | 2 | 3 | 4 | 5 | 6 | 7 | 8 (*iconst*) ->
       exec @@ update_frame f @@ Stack.push (Int (op - 3)) f.stack
@@ -306,6 +308,39 @@ let rec exec (f : jvmframe) =
       exec @@ update_frame_inc_ip f f.stack 3
   | 153 (*ifeq*) ->
       let b, s' = Stack.ifeq f.stack in
+      if b then
+        let i =
+          (List.nth f.code (f.ip + 1) * 256) + List.nth f.code (f.ip + 2)
+        in
+        exec @@ update_frame_set_ip f s' (f.ip + i)
+      else exec @@ update_frame_inc_ip f s' 3
+  | 154 (*ifne*) -> 
+      let b, s' = Stack.ifne f.stack in
+        if b then
+          let i =
+            (List.nth f.code (f.ip + 1) * 256) + List.nth f.code (f.ip + 2)
+          in
+          exec @@ update_frame_set_ip f s' (f.ip + i)
+        else exec @@ update_frame_inc_ip f s' 3
+  | 155 (*iflt*) -> 
+    let b, s' = Stack.iflt f.stack in
+      if b then
+        let i =
+          (List.nth f.code (f.ip + 1) * 256) + List.nth f.code (f.ip + 2)
+        in
+        exec @@ update_frame_set_ip f s' (f.ip + i)
+      else exec @@ update_frame_inc_ip f s' 3
+
+  | 156 (*ifge*) -> 
+     let b, s' = Stack.ifge f.stack in
+      if b then
+        let i =
+          (List.nth f.code (f.ip + 1) * 256) + List.nth f.code (f.ip + 2)
+        in
+        exec @@ update_frame_set_ip f s' (f.ip + i)
+      else exec @@ update_frame_inc_ip f s' 3
+  | 157 (*ifgt*) -> 
+    let b, s' = Stack.ifgt f.stack in
       if b then
         let i =
           (List.nth f.code (f.ip + 1) * 256) + List.nth f.code (f.ip + 2)
@@ -494,6 +529,12 @@ let find_main c =
 ;;
 
 let class_file = parse_file (Sys.argv.(1) ^ ".class") in
+let _ =
+  (for i = 1 to Array.length Sys.argv - 1 do
+    match Sys.argv.(i) with
+    | "-debug" -> debug := true
+    | _ -> ()
+  done) in
 let main_index = find_main class_file in
 let main = find_method class_file.methods main_index in
 let main_frame = create_frame main class_file [] in
