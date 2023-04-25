@@ -13,34 +13,66 @@ module Stack = struct
   let pop (s : t) : t =
     match s with x :: s -> s | [] -> raise EmptyStack
 
-  let arith f (l : t) : t =
+  let i2f (l : t) : t =
     match l with
-    | Int x :: Int y :: s -> Int (f y x) :: s
+    | Int x :: s -> Float (float_of_int x) :: s
     | _ -> raise (UnexcpectedType "Int required found something else in arith")
   
-  let i_add = arith (+)
-  let i_sub = arith (-)
-
-  let i_mul = arith ( * )
-
-  let i_div = arith (/)
-
-  let if_cmp f (l : t) : bool * t =
+  let iarith f (l : t) : t =
     match l with
-    | Int x :: Int y :: s -> (f x y, s)
-    | _ -> raise (UnexcpectedType "Int required found something else in if_cmp") 
+    | Int x :: Int y :: s -> Int (f y x) :: s
+    | _ -> raise (UnexcpectedType "Int required found something else in iarith")
 
-  let if_icmpeq = if_cmp (=)
-
-  let if_icmpne = if_cmp (<>)
-
-  let if_icmplt = if_cmp (<)
-
-  let if_icmpge = if_cmp (>=)
-
-  let if_icmpgt = if_cmp (>)
+  let farith f (l : t) : t =
+    match l with
+    | Float x :: Float y :: s -> Float (f y x) :: s
+    | _ -> raise (UnexcpectedType "Float required found something else in farith")
   
-  let if_icmple = if_cmp (<=)
+  let i_add = iarith (+)
+  let i_sub = iarith (-)
+  let i_mul = iarith ( * )
+  let i_div = iarith (/)
+
+  let f_mul = farith ( *.)
+  let f_div = farith ( /.)
+  let f_sub = farith ( -.)
+  let f_add = farith ( +.)
+
+  let if_icmpeq (l : t) : bool * t =
+    match l with
+    | Int x :: Int y :: s -> (y = x, s)
+    | Float x :: Float y :: s -> (y = x, s)
+    | _ -> raise (UnexcpectedType "Int/Float required found something else in if_icmpeq") 
+
+  let if_icmpne (l : t) : bool * t =
+    match l with
+    | Int x :: Int y :: s -> (y <>  x, s)
+    | Float x :: Float y :: s -> (y <>  x, s)
+    | _ -> raise (UnexcpectedType "Int/Float required found something else in if_icmpne") 
+
+  let if_icmplt (l : t) : bool * t =
+    match l with
+    | Int x :: Int y :: s -> (y  < x, s)
+    | Float x :: Float y :: s -> (y  < x, s)
+    | _ -> raise (UnexcpectedType "Int/Float required found something else in if_icmplt") 
+
+  let if_icmpge  (l : t) : bool * t =
+    match l with
+    | Int x :: Int y :: s -> (y >= x, s)
+    | Float x :: Float y :: s -> (y >= x, s)
+    | _ -> raise (UnexcpectedType "Int/Float required found something else in if_icmpge") 
+
+  let if_icmpgt (l : t) : bool * t =
+    match l with
+    | Int x :: Int y :: s -> (y > x, s)
+    | Float x :: Float y :: s -> (y > x, s)
+    | _ -> raise (UnexcpectedType "Int/Float required found something else in if_icmpgt") 
+  
+  let if_icmple (l : t) : bool * t =
+    match l with
+    | Int x :: Int y :: s -> (y <= x, s)
+    | Float x :: Float y :: s -> (y <= x, s)
+    | _ -> raise (UnexcpectedType "Int/Float required found something else in if_icmple") 
 
   let compare_int (op : int -> int -> bool) (l : t) : bool * t =
     match l with
@@ -61,6 +93,7 @@ module Stack = struct
   
   let to_string = function
     | Int n -> string_of_int n
+    | Float n -> string_of_float n
     | Str s -> s
     | CRef x -> "Obj Ref of " ^ (fst x).name
     | Void -> " "

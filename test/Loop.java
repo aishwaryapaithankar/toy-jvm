@@ -1,7 +1,8 @@
 public class Loop {
   public static void main(String[] args) {
-    for (int i = 10000; i <= 10010; i++) {
-        System.out.println(i + " x " + i + " = " + (i * i));
+    float x = 10.0f;
+    for (int i = 1; i <= 10; i++) {
+        System.out.println(i + " x " + i + " = " + (x * i));
     }
   }
 }

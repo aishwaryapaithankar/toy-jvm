@@ -1,18 +1,18 @@
 // Define a base class
 class Vehicle {
-    private int speed;
+    private float speed;
     private int numOfWheels;
 
-    public Vehicle(int speed, int numOfWheels) {
+    public Vehicle(float speed, int numOfWheels) {
         this.speed = speed;
         this.numOfWheels = numOfWheels;
     }
 
-    public void setSpeed(int speed) {
+    public void setSpeed(float speed) {
         this.speed = speed;
     }
 
-    public int getSpeed() {
+    public float getSpeed() {
         return this.speed;
     }
 
@@ -28,7 +28,7 @@ class Vehicle {
         System.out.println("Vehicle is moving");
     }
 
-    public void move(int s) {
+    public void move(float s) {
         System.out.println("Vehicle is moving at speed " + s);
     }
 }
@@ -38,7 +38,7 @@ class Car extends Vehicle {
     private String make;
     private String model;
 
-    public Car(int speed, int numOfWheels, String make, String model) {
+    public Car(float speed, int numOfWheels, String make, String model) {
         super(speed, numOfWheels);
         this.make = make;
         this.model = model;
@@ -70,13 +70,13 @@ class Car extends Vehicle {
 public class Inheritance2 {
     public static void main(String[] args) {
         // Create a Vehicle object
-        Vehicle vehicle = new Vehicle(60, 4);
+        Vehicle vehicle = new Vehicle(60.0f, 4);
         System.out.println("Speed: " + vehicle.getSpeed());
         System.out.println("Number of wheels: " + vehicle.getNumOfWheels());
         vehicle.move();
 
         // Create a Car object
-        Car car = new Car(100, 4, "Toyota", "Camry");
+        Car car = new Car(100.3f, 4, "Toyota", "Camry");
         System.out.println("Speed: " + car.getSpeed());
         System.out.println("Number of wheels: " + car.getNumOfWheels());
         System.out.println("Make: " + car.getMake());

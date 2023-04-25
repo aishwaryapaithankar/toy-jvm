@@ -13,6 +13,7 @@ type const = {
   bootstrapMethodAttrIndex : int;
   referenceKind : int;
   referenceIndex : int;
+  float_num: float;
 }
 
 type bootstrapMethodsAttr = {
@@ -52,7 +53,7 @@ type cls = {
 
 type 'a fl = { name : string; value : 'a }
 type cl = { class_name : string; class_file : cls }
-type var = Int of int | Str of string | Void | CRef of (cls * var fl list ref)
+type var = Int of int | Float of float | Str of string | Void | CRef of (cls * var fl list ref)
 
 type descriptor =
   | I (*Int*)

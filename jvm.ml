@@ -22,8 +22,9 @@ let rec find_method_by_name obj_cls mn d =
   let rec aux (l : field list) c =
     match l with
     | [] -> None
-    | x :: xs ->
-        if resolve c x.fNameIndex = mn && resolve c x.descIndex = d then
+    | x :: xs -> let Str(tmn) = resolve c x.fNameIndex in
+        let Str(td) = resolve c x.descIndex in
+        if tmn = mn && td = d then
           Some (obj_cls, x)
         else aux xs c
   in
@@ -39,8 +40,8 @@ let rec find_code_attribute (li : attr list) (c : cls) =
   let rec aux (l : attr list) =
     match l with
     | [] -> None
-    | x :: xs ->
-        if resolve c.constPool x.aNameIndex = "Code" then Some x else aux xs
+    | x :: xs -> let Str(mn) = resolve c.constPool x.aNameIndex in
+        if mn  = "Code"  then Some x else aux xs
   in
   let found = aux li in
   match found with
@@ -63,14 +64,15 @@ let create_frame m c (args : var list) =
     (fun i arg ->
       match arg with
       | Int x -> if i < max_local then l.(i) <- Int x else ()
+      | Float x -> if i < max_local then l.(i) <- Float x else ()
       | Str x -> if i < max_local then l.(i) <- Str x else ()
       | CRef x -> if i < max_local then l.(i) <- CRef x else ()
       | Void -> raise (UnexcpectedType "Unexcpected type in create frame"))
     args;
-
+  let Str(mn) = resolve c.constPool m.fNameIndex in 
   {
     class_file = c;
-    method_name = resolve c.constPool m.fNameIndex;
+    method_name = mn;
     ip = 0;
     code = cb;
     locals = l;
@@ -86,7 +88,7 @@ let update_frame_inc_ip (f : jvmframe) (s : Stack.t) (i : int) =
 let update_frame_set_ip (f : jvmframe) (s : Stack.t) (i : int) =
   { f with stack = s; ip = i }
 
-let get_name_and_args (cp : const list) (i : int) =
+let get_name_and_args (cp : const list) (i : int) : (int*string)=
   let i = (List.nth cp (i - 1)).nameAndTypeIndex in
   let nti = List.nth cp (i - 1) in
   (nti.cNameIndex, (List.nth cp (nti.descIndex - 1)).cString)
@@ -97,14 +99,16 @@ let is_concat_call (cp : const list) (i : int) =
   let bi = (List.nth cp (i - 1)).bootstrapMethodAttrIndex in
   let i = (List.nth cp (i - 1)).nameAndTypeIndex in
   let nti = List.nth cp (i - 1) in
-  if resolve cp nti.cNameIndex = "makeConcatWithConstants" then
+  let Str(mn) = resolve cp nti.cNameIndex in 
+  if mn = "makeConcatWithConstants" then
     (true, bi, (List.nth cp (nti.descIndex - 1)).cString)
   else (false, 0, (List.nth cp (nti.descIndex - 1)).cString)
 
 let ignore_method (cp : const list) (i : int) s =
   let i = (List.nth cp (i - 1)).classIndex in
   let ci = (List.nth cp (i - 1)).cNameIndex in
-  if resolve cp ci = "java/io/PrintStream" then (
+  let Str(mn) = resolve cp ci in
+  if mn = "java/io/PrintStream" then (
     (let x =
        Stack.peek s |> function
        | Str o -> o
@@ -112,8 +116,8 @@ let ignore_method (cp : const list) (i : int) s =
      in
      print_endline x);
     true)
-  else if resolve cp ci = "java/lang/Object" then true
-  else if resolve cp ci = "java/lang/System" then true
+  else if mn = "java/lang/Object" then true
+  else if mn = "java/lang/System" then true
   else false
 
 let parse_descriptor str =
@@ -167,8 +171,8 @@ let rec find_bootstrapMethods_attribute (li : attr list) (c : cls) =
   let rec aux (l : attr list) =
     match l with
     | [] -> raise (NotFound "No BootStrap Methods attribute")
-    | x :: xs ->
-        if resolve c.constPool x.aNameIndex = "BootstrapMethods" then x
+    | x :: xs -> let Str(mn) = resolve c.constPool x.aNameIndex in
+        if  mn = "BootstrapMethods" then x
         else aux xs
   in
   aux li
@@ -177,7 +181,8 @@ let get_format_string bi obj_cls =
   let bm = find_bootstrapMethods_attribute obj_cls.attributes obj_cls in
   let cpi = (List.nth bm.bootstrapMethods bi).bootstrapArguments in
   (*Assumed that there will be only one arg*)
-  resolve obj_cls.constPool (List.nth cpi 0)
+  let Str(x) = resolve obj_cls.constPool (List.nth cpi 0) in 
+  x
 
 let create_args_with_obj_ref (li : descriptor list) (stack : Stack.t) =
   let rec aux l s a =
@@ -199,19 +204,21 @@ let create_obj (clsname : string) : cls * var fl list ref =
   let fl =
     let rec aux l a c s =
       match l with
-      | x :: xs -> (
-          match resolve c x.descIndex with
-          | "I" ->
-              aux xs ({ name = resolve c x.fNameIndex; value = Int 0 } :: a) c s
-          | "Ljava/lang/String;" ->
+      | x :: xs -> (let Str(m) = resolve c x.descIndex in
+          match m with
+          | "I" -> let Str(mn) = resolve c x.fNameIndex in
+              aux xs ({ name = mn; value = Int 0 } :: a) c s
+          | "F" -> let Str(mn) = resolve c x.fNameIndex in
+              aux xs ({ name = mn; value = Float 0. } :: a) c s
+          | "Ljava/lang/String;" -> let Str(mn) = resolve c x.fNameIndex in
               aux xs
-                ({ name = resolve c x.fNameIndex; value = Str "" } :: a)
+                ({ name = mn; value = Str "" } :: a)
                 c s
           | _ ->
               raise
                 (UnexcpectedType
                    ("Unknown DataType found while creating new obj "
-                  ^ resolve c x.descIndex)))
+                  ^ m)))
       | [] ->
           if s <> "java/lang/Object" then
             let super_classfile = parse_other_class obj_classfile.super in
@@ -254,8 +261,8 @@ let rec exec (f : jvmframe) =
       let i = resolve f.class_file.constPool (List.nth f.code (f.ip + 1)) in
       exec
       @@ update_frame_inc_ip f
-           (Stack.push (Str i) f.stack)
-           2 (*TODO: Handle int, classref here*)
+           (Stack.push i f.stack)
+           2
   | 21 (*iload*) ->
       let i = List.nth f.code (f.ip + 1) in
       let v = f.locals.(i) in
@@ -269,6 +276,7 @@ let rec exec (f : jvmframe) =
       | Int _ as x -> exec @@ update_frame f @@ Stack.push x f.stack
       | _ ->
           raise (UnexcpectedType "Required int found something else in iload"))
+  | 34 | 35| 36 | 37 (*fload_<n>*) -> exec @@ update_frame f @@ Stack.push f.locals.(op - 34) f.stack
   | 42 | 43 | 44 | 45 (*aload_<n>*) ->
       exec @@ update_frame f @@ Stack.push f.locals.(op - 42) f.stack
   | 54 (*istore*) ->
@@ -282,8 +290,15 @@ let rec exec (f : jvmframe) =
         | Int o -> o
         | _ -> raise (UnexcpectedType "istore got unexpected value")
       in
-      (* let Int(x) = (Stack.peek f.stack) in  *)
       f.locals.(op - 59) <- Int x;
+      exec @@ update_frame f @@ Stack.pop f.stack
+  | 67 | 68 | 69 | 70 (*fstore*)->  
+      let x =
+        Stack.peek f.stack |> function
+        | Float o -> o
+        | _ -> raise (UnexcpectedType "fstore got unexpected value")
+      in
+      f.locals.(op - 67) <- Float x;
       exec @@ update_frame f @@ Stack.pop f.stack
   | 75 | 76 | 77 | 78 (*astore*) ->
       let x = Stack.peek f.stack in
@@ -293,9 +308,13 @@ let rec exec (f : jvmframe) =
   | 89 (*dup*) ->
       exec @@ update_frame f @@ Stack.push (Stack.peek f.stack) f.stack
   | 96 (*iadd*) -> exec @@ update_frame f @@ Stack.i_add f.stack
+  | 98 (*fadd*) -> exec @@ update_frame f @@ Stack.f_add f.stack
   | 100 (*isub*) -> exec @@ update_frame f @@ Stack.i_sub f.stack
+  | 102 (*fsub*) -> exec @@ update_frame f @@ Stack.f_sub f.stack
   | 104 (*imul*) -> exec @@ update_frame f @@ Stack.i_mul f.stack
+  | 106 (*fmul*) -> exec @@ update_frame f @@ Stack.f_mul f.stack
   | 108 (*idiv*) -> exec @@ update_frame f @@ Stack.i_div f.stack
+  | 110 (*fdiv*) -> exec @@ update_frame f @@ Stack.f_div f.stack
   | 132 (*iinc*) ->
       let i = List.nth f.code (f.ip + 1) in
       let c = signed_byte (List.nth f.code (f.ip + 2)) in
@@ -306,6 +325,7 @@ let rec exec (f : jvmframe) =
       in
       f.locals.(i) <- Int (x + c);
       exec @@ update_frame_inc_ip f f.stack 3
+  | 134 (*i2f*) -> exec @@ update_frame f @@ Stack.i2f f.stack
   | 153 (*ifeq*) ->
       let b, s' = Stack.ifeq f.stack in
       if b then
@@ -409,6 +429,7 @@ let rec exec (f : jvmframe) =
       exec @@ update_frame_set_ip f f.stack (f.ip + i)
   | 172 (*ireturn*) ->
       Stack.peek f.stack (*Caller should push this value to the stack*)
+  | 174 (*freturn*) ->  Stack.peek f.stack 
   | 176 (*areturn*) -> Stack.peek f.stack
   | 177 -> Void
   | 178 (*getstatic*) ->
@@ -419,7 +440,7 @@ let rec exec (f : jvmframe) =
   | 180 (*getfield*) ->
       let i = (List.nth f.code (f.ip + 1) * 256) + List.nth f.code (f.ip + 2) in
       let fi, d = get_name_and_args f.class_file.constPool i in
-      let fn = resolve f.class_file.constPool fi in
+      let Str(fn) = resolve f.class_file.constPool fi in
       let obj =
         Stack.peek f.stack |> function
         | CRef o -> o
@@ -432,7 +453,7 @@ let rec exec (f : jvmframe) =
   | 181 (*putfield*) ->
       let i = (List.nth f.code (f.ip + 1) * 256) + List.nth f.code (f.ip + 2) in
       let fi, d = get_name_and_args f.class_file.constPool i in
-      let fn = resolve f.class_file.constPool fi in
+      let Str(fn) = resolve f.class_file.constPool fi in
       let v = Stack.peek f.stack in
       let new_stack = Stack.pop f.stack in
       let obj =
@@ -453,13 +474,14 @@ let rec exec (f : jvmframe) =
         let new_stack, args =
           create_args_with_obj_ref (parse_descriptor d) f.stack
         in
-        let obj_cls_name =
+        let Str(obj_cls_name) =
           resolve f.class_file.constPool
             (List.nth f.class_file.constPool (i - 1)).classIndex
         in
         let obj_cls = parse_other_class obj_cls_name in
+        let Str(mn) = resolve f.class_file.constPool mi in
         let obj_cls, m =
-          find_method_by_name obj_cls (resolve f.class_file.constPool mi) d
+          find_method_by_name obj_cls mn d
         in
         let new_frame = create_frame m obj_cls args in
         let return_val = exec new_frame in
@@ -477,13 +499,14 @@ let rec exec (f : jvmframe) =
         let new_stack, args =
           create_args_with_obj_ref (parse_descriptor d) f.stack
         in
-        let obj_cls_name =
+        let Str(obj_cls_name) =
           resolve f.class_file.constPool
             (List.nth f.class_file.constPool (i - 1)).classIndex
         in
         let obj_cls = parse_other_class obj_cls_name in
+        let Str(mn) = resolve f.class_file.constPool mi in
         let obj_cls, m =
-          find_method_by_name obj_cls (resolve f.class_file.constPool mi) d
+          find_method_by_name obj_cls mn d
         in
         let new_frame = create_frame m obj_cls args in
         let return_val = exec new_frame in
@@ -514,7 +537,8 @@ let rec exec (f : jvmframe) =
       else raise (NotFound "No impl for invokedynamic")
   | 187 (*new*) ->
       let i = (List.nth f.code (f.ip + 1) * 256) + List.nth f.code (f.ip + 2) in
-      let obj = CRef (create_obj (resolve f.class_file.constPool i)) in
+      let Str(cn) = resolve f.class_file.constPool i in
+      let obj = CRef (create_obj cn) in
       exec @@ update_frame_inc_ip f (Stack.push obj f.stack) 3
   | _ ->
       print_endline (string_of_int op);
@@ -523,7 +547,8 @@ let rec exec (f : jvmframe) =
 let find_main c =
   let rec aux i =
     let index = (List.nth c.methods i).fNameIndex in
-    match resolve c.constPool index with "main" -> index | _ -> aux (i + 1)
+    let Str(mn) = resolve c.constPool index in
+    match mn with "main" -> index | _ -> aux (i + 1)
   in
   aux 0
 ;;
