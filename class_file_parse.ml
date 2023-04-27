@@ -1,5 +1,11 @@
 open Types
 
+type state = int list
+type 'a t = state -> 'a * state
+
+let ( >>= ) a f s = match a s with x, l -> f x l
+let ( let* ) = ( >>= )
+
 (*Helper functions to parse bytes*)
 let signed_byte x = if x > 127 then -((lnot x land 0xFF) + 1) else x
 
@@ -38,29 +44,34 @@ let parse_four_bytes l =
       (i, xs)
   | _ -> raise (UnexcpectedType "Insufficent number of bytes found")
 
-let parse_two_bytes l =
+let parse_two_bytes : int t =
+ fun l ->
   match l with
   | a :: b :: xs ->
       let i = Int.shift_left a 8 lor b in
       (i, xs)
   | _ -> raise (UnexcpectedType "Insufficent number of bytes found")
 
-let parse_magicword l =
+let parse_magicword : unit t =
+ fun l ->
   match l with
-  | 202 :: 254 :: 186 :: 190 :: xs -> xs
+  | 202 :: 254 :: 186 :: 190 :: xs -> ((), xs)
   | _ -> raise (UnexcpectedType "Magic word is incorrect")
 
-let parse_version l =
+let parse_version : unit t =
+ fun l ->
   match l with
-  | a :: b :: c :: d :: xs -> xs
+  | a :: b :: c :: d :: xs -> ((), xs)
   | _ -> raise (UnexcpectedType "Insufficent number of bytes found")
 
-let parse_constant_pool_count l =
+let parse_constant_pool_count : int t =
+ fun l ->
   match l with
   | a :: b :: xs -> ((a * 256) + b, xs)
   | _ -> raise (UnexcpectedType "Insufficent number of bytes found")
 
-let get_bytes fn =
+let get_bytes fn : unit t =
+ fun _ ->
   let inc = open_in_bin fn in
   let rec go sofar =
     match input_char inc with
@@ -69,7 +80,7 @@ let get_bytes fn =
   in
   let res = go [] in
   close_in inc;
-  res
+  ((), res)
 
 let parse_numeric_float i =
   let s = if Int.shift_right i 31 = 0 then 1 else -1 in
@@ -111,7 +122,8 @@ let base_const =
   }
 
 (* functions to parse class file structure*)
-let parse_constant_pool l count =
+let parse_constant_pool count : const list t =
+ fun l ->
   let rec aux l c const_pool =
     if c >= count then (const_pool, l)
     else
@@ -122,24 +134,24 @@ let parse_constant_pool l count =
             ({ base_const with tag = 7; cNameIndex = name_index }, l')
         | 10 :: xs (* CONSTANT_Methodref  *) ->
             let class_index, l' = parse_two_bytes xs in
-            let name_and_type_index, l'' = parse_two_bytes l' in
+            let name_and_type_index, l = parse_two_bytes l' in
             ( {
                 base_const with
                 tag = 10;
                 classIndex = class_index;
                 nameAndTypeIndex = name_and_type_index;
               },
-              l'' )
+              l )
         | 9 :: xs (*CONSTANT_Fieldref*) ->
             let class_index, l' = parse_two_bytes xs in
-            let name_and_type_index, l'' = parse_two_bytes l' in
+            let name_and_type_index, l = parse_two_bytes l' in
             ( {
                 base_const with
                 tag = 9;
                 classIndex = class_index;
                 nameAndTypeIndex = name_and_type_index;
               },
-              l'' )
+              l )
         | 11 :: xs (* CONSTANT_InterfaceMethodref  *) ->
             raise (NotFound "notimpl CONSTANT_InterfaceMethodref")
         | 8 :: xs (* CONSTANT_String  *) ->
@@ -156,42 +168,42 @@ let parse_constant_pool l count =
             raise (NotFound "notimpl CONSTANT_Double")
         | 12 :: xs (* CONSTANT_NameAndType  *) ->
             let name_index, l' = parse_two_bytes xs in
-            let descriptor_index, l'' = parse_two_bytes l' in
+            let descriptor_index, l = parse_two_bytes l' in
             ( {
                 base_const with
                 tag = 12;
                 cNameIndex = name_index;
                 descIndex = descriptor_index;
               },
-              l'' )
+              l )
         | 1 :: xs (* CONSTANT_Utf8  *) ->
             let length, l' = parse_two_bytes xs in
-            let string_val, l'' = bytes_to_string length l' in
-            ({ base_const with tag = 1; cString = string_val }, l'')
+            let string_val, l = bytes_to_string length l' in
+            ({ base_const with tag = 1; cString = string_val }, l)
         | 15 :: x :: xs (* CONSTANT_MethodHandle  *) ->
             let rk = x in
-            let ri, l'' = parse_two_bytes xs in
+            let ri, l = parse_two_bytes xs in
             ( {
                 base_const with
                 tag = 15;
                 referenceIndex = ri;
                 referenceKind = rk;
               },
-              l'' )
+              l )
         | 16 :: xs (* CONSTANT_MethodType  *) ->
             raise (NotFound "notimpl CONSTANT_MethodType")
         | 17 :: xs (* CONSTANT_Dynamic  *) ->
             raise (NotFound "notimpl CONSTANT_Dynamic")
         | 18 :: xs (* CONSTANT_InvokeDynamic  *) ->
             let bi, l' = parse_two_bytes xs in
-            let name_and_type_index, l'' = parse_two_bytes l' in
+            let name_and_type_index, l = parse_two_bytes l' in
             ( {
                 base_const with
                 tag = 18;
                 nameAndTypeIndex = name_and_type_index;
                 bootstrapMethodAttrIndex = bi;
               },
-              l'' )
+              l )
         | 19 :: xs (* CONSTANT_Module  *) ->
             raise (NotFound "notimpl CONSTANT_Module")
         | 20 :: xs (* CONSTANT_Package  *) ->
@@ -218,29 +230,32 @@ let split_n n lst =
   in
   aux [] 0 lst
 
-let parse_attribute_info l count =
+let parse_attribute_info count : attr list t =
+ fun l ->
   let rec aux b c attr_info =
     if c > count then (attr_info, b)
     else
-      let attribute_name_index, b = parse_two_bytes b in
-      (* let _ = print_endline "parse_attribute_info CASE" in *)
-      let attr_len, b = parse_four_bytes b in
-      let attr_bytes, b = split_n attr_len b in
-      let info =
-        [
-          {
-            aNameIndex = attribute_name_index;
-            len = attr_len;
-            info = attr_bytes;
-            bootstrapMethods = [];
-          };
-        ]
-      in
-      aux b (c + 1) (attr_info @ info)
+      (let* attribute_name_index = parse_two_bytes in
+       let* attr_len = parse_four_bytes in
+       let* attr_bytes = split_n attr_len in
+       fun st ->
+         let info =
+           [
+             {
+               aNameIndex = attribute_name_index;
+               len = attr_len;
+               info = attr_bytes;
+               bootstrapMethods = [];
+             };
+           ]
+         in
+         aux st (c + 1) (attr_info @ info))
+        b
   in
   aux l 1 []
 
-let parse_bootstrap_attr l count =
+let parse_bootstrap_attr count : int list t =
+ fun l ->
   let rec aux i b args =
     if i > count then (args, b)
     else
@@ -249,113 +264,127 @@ let parse_bootstrap_attr l count =
   in
   aux 1 l []
 
-let parse_bootstrap_methods l count =
+let parse_bootstrap_methods count : bootstrapMethodsAttr list t =
+ fun l ->
   let rec aux i b methods =
     if i > count then (List.rev methods, b)
     else
-      let bootstrap_method_ref, b = parse_two_bytes b in
-      let num_bootstrap_arguments, b = parse_two_bytes b in
-      let bootstrap_arguments, b =
-        parse_bootstrap_attr b num_bootstrap_arguments
-      in
-      aux (i + 1) b
-        ({
-           bootstrapMethodRef = bootstrap_method_ref;
-           numBootstrapArguments = num_bootstrap_arguments;
-           bootstrapArguments = bootstrap_arguments;
-         }
-        :: methods)
+      (let* bootstrap_method_ref = parse_two_bytes in
+       let* num_bootstrap_arguments = parse_two_bytes in
+       let* bootstrap_arguments =
+         parse_bootstrap_attr num_bootstrap_arguments
+       in
+       fun st ->
+         aux (i + 1) st
+           ({
+              bootstrapMethodRef = bootstrap_method_ref;
+              numBootstrapArguments = num_bootstrap_arguments;
+              bootstrapArguments = bootstrap_arguments;
+            }
+           :: methods))
+        b
   in
   aux 1 l []
 
-let parse_attribute_info_with_bootstrap l count cp =
+let parse_attribute_info_with_bootstrap count cp : attr list t =
+ fun l ->
   let rec aux b c attr_info =
     if c > count then (attr_info, b)
     else
       let attribute_name_index, b = parse_two_bytes b in
       let (Str mn) = resolve cp attribute_name_index in
       if mn = "BootstrapMethods" then
-        let attr_len, b = parse_four_bytes b in
-        let attr_method_num, b = parse_two_bytes b in
-        let bootstrap_methods, b = parse_bootstrap_methods b attr_method_num in
-        let info =
-          [
-            {
-              aNameIndex = attribute_name_index;
-              len = attr_len;
-              info = [];
-              bootstrapMethods = bootstrap_methods;
-            };
-          ]
-        in
-        aux b (c + 1) (attr_info @ info)
+        (let* attr_len = parse_four_bytes in
+         let* attr_method_num = parse_two_bytes in
+         let* bootstrap_methods = parse_bootstrap_methods attr_method_num in
+         fun st ->
+           let info =
+             [
+               {
+                 aNameIndex = attribute_name_index;
+                 len = attr_len;
+                 info = [];
+                 bootstrapMethods = bootstrap_methods;
+               };
+             ]
+           in
+           aux st (c + 1) (attr_info @ info))
+          b
       else
-        (* let _ = print_endline "ELSE CASE" in *)
-        let attr_len, b = parse_four_bytes b in
-        let attr_bytes, b = split_n attr_len b in
-        let info =
-          [
-            {
-              aNameIndex = attribute_name_index;
-              len = attr_len;
-              info = attr_bytes;
-              bootstrapMethods = [];
-            };
-          ]
-        in
-        aux b (c + 1) (attr_info @ info)
+        (let* attr_len = parse_four_bytes in
+         let* attr_bytes = split_n attr_len in
+         fun st ->
+           let info =
+             [
+               {
+                 aNameIndex = attribute_name_index;
+                 len = attr_len;
+                 info = attr_bytes;
+                 bootstrapMethods = [];
+               };
+             ]
+           in
+           aux st (c + 1) (attr_info @ info))
+          b
   in
   aux l 1 []
 
-let parse_method_info l count : field list * int list =
+let parse_method_info count : field list t =
+ fun l ->
   let rec aux b c method_info =
     if c > count then (method_info, b)
     else
-      let access_flags, b = parse_two_bytes b in
-      let name_index, b = parse_two_bytes b in
-      let descriptor_index, b = parse_two_bytes b in
-      let attributes_count, b = parse_two_bytes b in
-      let attribute_info, b = parse_attribute_info b attributes_count in
-      let info =
-        [
-          {
-            accessFlag = access_flags;
-            fNameIndex = name_index;
-            descIndex = descriptor_index;
-            attrCount = attributes_count;
-            attrInfo = attribute_info;
-          };
-        ]
-      in
-      aux b (c + 1) (method_info @ info)
+      (let* access_flags = parse_two_bytes in
+       let* name_index = parse_two_bytes in
+       let* descriptor_index = parse_two_bytes in
+       let* attributes_count = parse_two_bytes in
+       let* attribute_info = parse_attribute_info attributes_count in
+       fun st ->
+         let info =
+           [
+             {
+               accessFlag = access_flags;
+               fNameIndex = name_index;
+               descIndex = descriptor_index;
+               attrCount = attributes_count;
+               attrInfo = attribute_info;
+             };
+           ]
+         in
+         aux st (c + 1) (method_info @ info))
+        b
   in
   aux l 1 []
 
-let parse_field_info l count : field list * int list =
+let parse_field_info count : field list t =
+ fun l ->
   let rec aux b c field_info =
     if c > count then (field_info, b)
     else
-      let access_flags, b = parse_two_bytes b in
-      let name_index, b = parse_two_bytes b in
-      let descriptor_index, b = parse_two_bytes b in
-      let attributes_count, b = parse_two_bytes b in
-      let attribute_info, b = parse_attribute_info b attributes_count in
-      let info =
-        [
-          {
-            accessFlag = access_flags;
-            fNameIndex = name_index;
-            descIndex = descriptor_index;
-            attrCount = attributes_count;
-            attrInfo = attribute_info;
-          };
-        ]
-      in
-      aux b (c + 1) (field_info @ info)
+      (let* access_flags = parse_two_bytes in
+       let* name_index = parse_two_bytes in
+       let* descriptor_index = parse_two_bytes in
+       let* attributes_count = parse_two_bytes in
+       let* attribute_info = parse_attribute_info attributes_count in
+       fun st ->
+         let info =
+           [
+             {
+               accessFlag = access_flags;
+               fNameIndex = name_index;
+               descIndex = descriptor_index;
+               attrCount = attributes_count;
+               attrInfo = attribute_info;
+             };
+           ]
+         in
+         aux st (c + 1) (field_info @ info))
+        b
   in
   aux l 1 []
 
-let parse_interfaces l count : interface list * int list =
+let parse_interfaces count : interface list t =
+ fun l ->
   let rec aux b c interface_info =
     if c > count then (interface_info, b)
     else
@@ -365,48 +394,44 @@ let parse_interfaces l count : interface list * int list =
   in
   aux l 1 []
 
-let parse_file file =
-  let b = get_bytes file in
-  let b = parse_magicword b in
-  let b = parse_version b in
-  let constant_pool_count, b = parse_constant_pool_count b in
-  let constant_pool, b =
-    if constant_pool_count > 0 then
-      parse_constant_pool b (constant_pool_count - 1)
-    else ([], b)
+let parse_file_ops file =
+  let* _ = get_bytes file in
+  let* _ = parse_magicword in
+  let* _ = parse_version in
+  let* constant_pool_count = parse_constant_pool_count in
+  let* constant_pool = parse_constant_pool (constant_pool_count - 1) in
+  let* access_flags = parse_two_bytes in
+  let* this_class = parse_two_bytes in
+  let* super_class = parse_two_bytes in
+  let* interfaces_count = parse_two_bytes in
+  let* interfaces = parse_interfaces interfaces_count in
+  let* fields_count = parse_two_bytes in
+  let* field_info = parse_field_info fields_count in
+  let* method_count = parse_two_bytes in
+  let* method_info = parse_method_info method_count in
+  let* attributes_count = parse_two_bytes in
+  let* attribute_info =
+    parse_attribute_info_with_bootstrap attributes_count constant_pool
   in
-  let access_flags, b = parse_two_bytes b in
-  let this_class, b = parse_two_bytes b in
-  let super_class, b = parse_two_bytes b in
-  let interfaces_count, b = parse_two_bytes b in
-  let interfaces, b =
-    if interfaces_count > 0 then parse_interfaces b interfaces_count else ([], b)
-  in
-  let fields_count, b = parse_two_bytes b in
-  let field_info, b =
-    if fields_count > 0 then parse_field_info b fields_count else ([], b)
-  in
-  let method_count, b = parse_two_bytes b in
-  let method_info, b = parse_method_info b method_count in
-  let attributes_count, b = parse_two_bytes b in
-  let attribute_info, b =
-    parse_attribute_info_with_bootstrap b attributes_count constant_pool
-  in
-  let name =
-    let (Str x) = resolve constant_pool this_class in
-    x
-  in
-  let super_name =
-    let (Str x) = resolve constant_pool super_class in
-    x
-  in
-  {
-    constPool = constant_pool;
-    name;
-    super = super_name;
-    accessFlags = access_flags;
-    interfaces;
-    fields = field_info;
-    methods = method_info;
-    attributes = attribute_info;
-  }
+  fun st ->
+    let name =
+      let (Str x) = resolve constant_pool this_class in
+      x
+    in
+    let super_name =
+      let (Str x) = resolve constant_pool super_class in
+      x
+    in
+    ( {
+        constPool = constant_pool;
+        name;
+        super = super_name;
+        accessFlags = access_flags;
+        interfaces;
+        fields = field_info;
+        methods = method_info;
+        attributes = attribute_info;
+      },
+      st )
+
+let parse_file file = fst (parse_file_ops file [])
