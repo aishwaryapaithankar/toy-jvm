@@ -13,7 +13,7 @@ type const = {
   bootstrapMethodAttrIndex : int;
   referenceKind : int;
   referenceIndex : int;
-  float_num: float;
+  float_num : float;
 }
 
 type bootstrapMethodsAttr = {
@@ -53,7 +53,15 @@ type cls = {
 
 type 'a fl = { name : string; value : 'a }
 type cl = { class_name : string; class_file : cls }
-type var = Int of int | Float of float | Str of string | Void | CRef of (cls * var fl list ref)
+
+type var =
+  | Int of int
+  | Float of float
+  | Str of string
+  | Void
+  | CRef of (cls * var fl list ref)
+  | IARef of int array ref
+  | FARef of float array ref
 
 type descriptor =
   | I (*Int*)
@@ -62,3 +70,5 @@ type descriptor =
   | F (*Float*)
   | Z (*Boolean*)
   | V (*Void*)
+  | IA (*IntArray*)
+  | FA (*FloatArray*)

@@ -1,6 +1,5 @@
 open Types
 
-
 (*Helper functions to parse bytes*)
 let signed_byte x = if x > 127 then -((lnot x land 0xFF) + 1) else x
 
@@ -72,21 +71,29 @@ let get_bytes fn =
   close_in inc;
   res
 
-let parse_numeric_float i = 
-    let s = if Int.shift_right i 31 = 0 then 1 else (-1) in
-    let e = (Int.shift_right i 23) land 0xff in
-    let m = if e = 0 then Int.shift_left (i land 0x7fffff) 1
-            else (i land 0x7fffff) lor 0x800000 
-    in (float_of_int s) *. (float_of_int m) *. (Float.pow 2. (float_of_int (e-150))) ;;
-    
-let parse_float_number l = 
-  let (bits,l') = parse_four_bytes l in
-  let b = (match bits with 
-  | 0x7f800000 -> Float.infinity 
-  | 0xff800000 -> Float.neg_infinity
-  | x -> if (x >= 0x7f800001 && x <= 0x7fffffff) || (x >= 0xff800001 && x <= 0xffffffff) then Float.nan
-         else parse_numeric_float x )
-        in (b,l');;
+let parse_numeric_float i =
+  let s = if Int.shift_right i 31 = 0 then 1 else -1 in
+  let e = Int.shift_right i 23 land 0xff in
+  let m =
+    if e = 0 then Int.shift_left (i land 0x7fffff) 1
+    else i land 0x7fffff lor 0x800000
+  in
+  float_of_int s *. float_of_int m *. Float.pow 2. (float_of_int (e - 150))
+
+let parse_float_number l =
+  let bits, l' = parse_four_bytes l in
+  let b =
+    match bits with
+    | 0x7f800000 -> Float.infinity
+    | 0xff800000 -> Float.neg_infinity
+    | x ->
+        if
+          (x >= 0x7f800001 && x <= 0x7fffffff)
+          || (x >= 0xff800001 && x <= 0xffffffff)
+        then Float.nan
+        else parse_numeric_float x
+  in
+  (b, l')
 
 let base_const =
   {
@@ -141,8 +148,8 @@ let parse_constant_pool l count =
         | 3 :: xs (* CONSTANT_Integer  *) ->
             raise (NotFound "notimpl CONSTANT_Integer")
         | 4 :: xs (* CONSTANT_Float  *) ->
-            let n,l' = parse_float_number xs in
-            ({base_const with tag=4; float_num=n},l')
+            let n, l' = parse_float_number xs in
+            ({ base_const with tag = 4; float_num = n }, l')
         | 5 :: xs (* CONSTANT_Long  *) ->
             raise (NotFound "notimpl CONSTANT_Long")
         | 6 :: xs (* CONSTANT_Double  *) ->
@@ -197,11 +204,11 @@ let parse_constant_pool l count =
 
 let rec resolve cp index =
   let const = List.nth cp (index - 1) in
-  if const.tag = 1 then Str(const.cString)
-  else if const.tag = 4 then Float(const.float_num)
+  if const.tag = 1 then Str const.cString
+  else if const.tag = 4 then Float const.float_num
   else if const.tag = 7 then resolve cp const.cNameIndex
   else if const.tag = 8 then resolve cp const.stringIndex
-  else Str("")
+  else Str ""
 
 let split_n n lst =
   let rec aux acc i = function
@@ -266,7 +273,7 @@ let parse_attribute_info_with_bootstrap l count cp =
     if c > count then (attr_info, b)
     else
       let attribute_name_index, b = parse_two_bytes b in
-      let Str(mn) = resolve cp attribute_name_index in
+      let (Str mn) = resolve cp attribute_name_index in
       if mn = "BootstrapMethods" then
         let attr_len, b = parse_four_bytes b in
         let attr_method_num, b = parse_two_bytes b in
@@ -383,13 +390,19 @@ let parse_file file =
   let method_info, b = parse_method_info b method_count in
   let attributes_count, b = parse_two_bytes b in
   let attribute_info, b =
-    parse_attribute_info_with_bootstrap b attributes_count constant_pool in
-  let name =  (let Str(x) = resolve constant_pool this_class in x )  in
-  let super_name =  (let Str(x) = resolve constant_pool super_class in x )  
+    parse_attribute_info_with_bootstrap b attributes_count constant_pool
+  in
+  let name =
+    let (Str x) = resolve constant_pool this_class in
+    x
+  in
+  let super_name =
+    let (Str x) = resolve constant_pool super_class in
+    x
   in
   {
     constPool = constant_pool;
-    name = name;
+    name;
     super = super_name;
     accessFlags = access_flags;
     interfaces;
