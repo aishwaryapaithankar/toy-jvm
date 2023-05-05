@@ -3,8 +3,9 @@
 Toy-jvm is a Java virtual machine interpreter with the following features:
 
 - Supports int, float, and string data types.
-- Supports loops (for, while) and conditional statements (if-else).
 - Supports Arithmetic operations.
+- Supports loops (for, while) and conditional statements (if-else).
+- Supports int and float array.
 - Supports classes, object creation and method invokation.
 - Supports inheritance, method overriding, and overloading.
 - Supports recursive function calls
