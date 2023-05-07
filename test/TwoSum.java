@@ -11,17 +11,14 @@ public class TwoSum {
         return new int[] { -1, -1 };
     }
     public static void main(String[] args) {
-        float[] nums = new float[1000];
+        float[] nums = new float[100];
         for (int i = 0; i < nums.length; i++)
         	nums[i] = (float)(i+1);
 
-        int[] ans = twoSum(nums,1999f);
+        int[] ans = twoSum(nums,199f);
         System.out.println("Sum pair found at: " + ans);
 
-//        ans = twoSum(n,5f);
-//        System.out.println("Sum pair found at: " + ans);
-
-//        ans = twoSum(n,4.5f);
-//        System.out.println("Sum pair found at: " + ans);
+        ans = twoSum(nums,4.5f);
+        System.out.println("Sum pair found at: " + ans);
     }
 }
